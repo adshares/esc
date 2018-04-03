@@ -8,6 +8,7 @@
 #include <boost/bind.hpp>
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/make_shared.hpp>
 #include <boost/optional/optional.hpp>
 #include <boost/program_options.hpp>

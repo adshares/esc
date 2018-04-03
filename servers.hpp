@@ -1404,15 +1404,23 @@ public:
 				if(dat->d_type==DT_REG &&
 				   strlen(dat->d_name)==20 &&
 				   dat->d_name[16]=='.' &&
-				   dat->d_name[17]=='m' &&
-				   dat->d_name[18]=='s' &&
-				   dat->d_name[19]=='g' &&
+				   (dat->d_name[17]=='m' || dat->d_name[17]=='u') &&
+				   (dat->d_name[18]=='s' || dat->d_name[18]=='n') &&
+				   (dat->d_name[19]=='g' || dat->d_name[19]=='d') &&
 				   (dat->d_name[3]!=pat[0] ||
 				    dat->d_name[4]!=pat[1] ||
 				    dat->d_name[5]!=pat[2] ||
 				    dat->d_name[6]!=pat[3])){
 					DLOG("UNLINK: %s/%s\n",pathname,dat->d_name);
 					unlinkat(dd,dat->d_name,0);}}
+			unlinkat(dd,"delta.txt",0);
+			unlinkat(dd,"log.txt",0);
+			sprintf(pathname,"blk/%03X/%05X/log",path>>20,path&0xFFFFF);
+			boost::filesystem::path logd(pathname);
+			boost::filesystem::remove_all(logd);
+			sprintf(pathname,"blk/%03X/%05X/und",path>>20,path&0xFFFFF);
+			boost::filesystem::path undd(pathname);
+			boost::filesystem::remove_all(undd);
 			if((fd=openat(dd,"clean.txt",O_WRONLY|O_CREAT,0644))>=0){
 				close(fd);}
 			closedir(dir);}

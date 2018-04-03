@@ -141,7 +141,7 @@ public:
         ELOG("ERROR: reading servers (<=%d)\n",opts_.svid);
         exit(-1);} 
       iamvip=(bool)(srvs_.nodes[opts_.svid].status & SERVER_VIP);
-      pkey=srvs_.nodes[opts_.svid].pk;
+      pkey=srvs_.nodes[opts_.svid].pk; // consider having a separate buffer for pkey
       //DLOG("INI:%016lX\n",*(uint64_t*)pkey);
       if(!last_srvs_.find_key(pkey,skey)){
         char pktext[2*32+1]; pktext[2*32]='\0';
