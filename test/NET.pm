@@ -10,13 +10,14 @@ our %EXPORT_TAGS=(ALL=>\@EXPORT_OK);
 our $secret="14B183205CA661F589AD83809952A692DFA48F5D490B10FD120DA7BF10F2F4A0"; # default esc secret
 our $hostname=""; # enable hostname detection
 our @nodes=( # define directories for each node
-  "/tmp/esc/n1",
-  "/tmp/esc/n2",
-  "/tmp/esc/n3",
-  "/tmp/esc/n4",
-  "/tmp/esc/n5",
-  "/tmp/esc/n6",
-  "/tmp/esc/n7");
+  "/tmp/esc/n1"
+# ,"/tmp/esc/n2"
+# ,"/tmp/esc/n3"
+# ,"/tmp/esc/n4"
+# ,"/tmp/esc/n5"
+# ,"/tmp/esc/n6"
+# ,"/tmp/esc/n7"
+  );
 #test
 #@nodes=("/tmp/esc/n1");
 

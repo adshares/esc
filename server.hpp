@@ -66,6 +66,14 @@ public:
       last_srvs_.update_vipstatus();
       bank_fee.resize(last_srvs_.nodes.size());}
 
+    if(opts_.back && !opts_.comm){
+      if(undo_bank(false)){
+        ELOG("DATABASE check passed, run again with --comm (-c) to commit database change and proceed\n");
+        exit(0);}
+      else{
+        ELOG("DATABASE check failed\n");
+        exit(-1);}}
+
     if(opts_.init){
       struct stat sb;   
       uint32_t now=time(NULL);
@@ -75,7 +83,7 @@ public:
           ELOG("ERROR reading servers for path %08X\n",lastpath);
           exit(-1);}
         ELOG("INIT from last state @ %08X with MSID: %08X (file usr/0001.dat found)\n",lastpath,msid_);
-        if(!undo_bank()){
+        if(!undo_bank(true)){
           ELOG("ERROR loading initial database, fatal\n");
           exit(-1);}
         // do not rebuild blockchain
@@ -134,14 +142,15 @@ public:
 
     if(!opts_.svid){ // READONLY ok
       iamvip=false;
-      bzero(skey,SHA256_DIGEST_LENGTH);
-      pkey=skey;}
+      bzero(skey,sizeof(hash_t));
+      bzero(pkey,sizeof(hash_t));}
     else{
       if(last_srvs_.nodes.size()<=(unsigned)opts_.svid){ 
         ELOG("ERROR: reading servers (<=%d)\n",opts_.svid);
         exit(-1);} 
       iamvip=(bool)(srvs_.nodes[opts_.svid].status & SERVER_VIP);
-      pkey=srvs_.nodes[opts_.svid].pk; // consider having a separate buffer for pkey
+      //pkey=srvs_.nodes[opts_.svid].pk; // consider having a separate buffer for pkey
+      memcpy(pkey,srvs_.nodes[opts_.svid].pk,sizeof(hash_t));
       //DLOG("INI:%016lX\n",*(uint64_t*)pkey);
       if(!last_srvs_.find_key(pkey,skey)){
         char pktext[2*32+1]; pktext[2*32]='\0';
@@ -151,7 +160,7 @@ public:
       last_srvs_.find_more_keys(pkey,nkeys);}
 
     if(!opts_.init){
-      if(!undo_bank()){//check database consistance
+      if(!undo_bank(true)){//check database consistance
         if(!do_fast){
           ELOG("DATABASE check failed, must use fast option to load new datase from network\n");
           exit(-1);}
@@ -299,7 +308,7 @@ public:
   }
 
   //update_nodehash is similar
-  int undo_bank() //will undo database changes and check if the database is consistant
+  int undo_bank(bool commit) //will undo database changes and check if the database is consistant
   { //could use multiple threads but disk access could limit the processing anyway
     //uint32_t path=srvs_.now; //use undo from next block
     uint32_t path=last_srvs_.now+BLOCKSEC; //use undo from next block
@@ -328,17 +337,25 @@ public:
        int64_t weight=0;
       uint64_t csum[4]={0,0,0,0};
       for(uint32_t user=0;user<users;user++){
+        auto it=ud.begin();
         user_t u;
-        for(auto it=ud.begin();it!=ud.end();it++){
+        int back=opts_.back;
+        for(;it!=ud.end();it++,back--){
           u.msid=0;
           if(sizeof(user_t)==read(*it,&u,sizeof(user_t)) && u.msid){
-            DLOG("OVERWRITE: %04X:%08X (weight:%016lX)\n",bank,user,u.weight);
-            write(fd,&u,sizeof(user_t)); //overwrite bank file
+            DLOG("OVERWRITE: %04X:%08X (weight:%016lX) (back:%d)\n",bank,user,u.weight,back);
+            if(commit){
+              write(fd,&u,sizeof(user_t));} //overwrite bank file
+            else{
+              lseek(fd,sizeof(user_t),SEEK_CUR);} //overwrite bank file
+            it++;
             goto NEXTUSER;}}
         if(sizeof(user_t)!=read(fd,&u,sizeof(user_t))){
           ELOG("ERROR loading bank %04X (bad read)\n",bank);
           failed=true;}
         NEXTUSER:;
+        for(;it!=ud.end();it++){
+          lseek(*it,sizeof(user_t),SEEK_CUR);}
         weight+=u.weight;
         //FIXME, debug only !!!
 #ifdef DEBUG
@@ -702,8 +719,8 @@ public:
         period_start=srvs_.nextblock();
         bank_fee.resize(last_srvs_.nodes.size());
         if(opts_.svid && opts_.svid<(int)srvs_.nodes.size()){
-          iamvip=(bool)(srvs_.nodes[opts_.svid].status & SERVER_VIP);
-          pkey=srvs_.nodes[opts_.svid].pk;} //FIXME, is this needed and safe ?
+          //pkey=srvs_.nodes[opts_.svid].pk; //FIXME, is this needed and safe ?
+          iamvip=(bool)(srvs_.nodes[opts_.svid].status & SERVER_VIP);}
         do_fast=1;
         headers_.unlock();
         return(1);}
@@ -2140,7 +2157,12 @@ public:
           old_bky.insert(node);
           if(node==opts_.svid){
             if(utxs.bbank){
-              ofip_change_pkey((uint8_t*)utxs.opkey(p));}
+              memcpy(pkey,(uint8_t*)utxs.opkey(p),sizeof(hash_t));
+              if(!srvs_.find_key(pkey,skey)){
+                ELOG("ERROR, failed to change to old bank key, fatal!\n");
+                exit(-1);}
+              last_srvs_.find_more_keys(pkey,nkeys);
+              ofip_change_pkey(pkey);}
             DLOG("WARNING undoing local bank key change\n");}}
         if(node){
           uint64_t ppb=make_ppi(tmpos,omsid,msg->msid,msg->svid,node);
@@ -2906,10 +2928,11 @@ public:
         blk_bky[it->first]=node;}
       memcpy(srvs_.nodes[node].pk,it->second.hash,32);
       if(node==opts_.svid){
-        if(!srvs_.find_key(it->second.hash,skey)){
+        memcpy(pkey,srvs_.nodes[node].pk,sizeof(hash_t));
+        if(!srvs_.find_key(pkey,skey)){
           ELOG("ERROR, failed to change to new bank key, fatal!\n");
           exit(-1);}
-        pkey=srvs_.nodes[node].pk;
+        //pkey=srvs_.nodes[node].pk;
         last_srvs_.find_more_keys(pkey,nkeys);}}
     blk_bnk.insert(txs_bnk.begin(),txs_bnk.end());
     blk_get.insert(txs_get.begin(),txs_get.end());
@@ -4211,7 +4234,8 @@ public:
   std::list<servers> headers; //FIXME, make this private
   uint32_t get_msglist; //block id of the requested msglist of messages
   office* ofip;
-  uint8_t *pkey; //used by office/client to create BKY transaction
+  //uint8_t *pkey; //used by office/client to create BKY transaction
+  hash_t pkey; // can not be a pointer to servers.nodes[] because add_node runs push_back() on a vector
   uint32_t start_path;
   uint32_t start_msid;
 private:

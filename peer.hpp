@@ -12,7 +12,7 @@ public:
       peer_io_service_(),
       work_(peer_io_service_),
       socket_(peer_io_service_),
-      iothp_(NULL),
+      iothp_(nullptr),
       server_(srv),
       incoming_(in),
       srvs_(srvs),
@@ -27,7 +27,8 @@ public:
       BLOCK_SERV(false),
       BLOCK_PEER(false)
   { read_msg_ = boost::make_shared<message>();
-    iothp_= new boost::thread(boost::bind(&peer::iorun,this));
+    //iothp_= new boost::thread(boost::bind(&peer::iorun,this));
+    iothp_.reset(new boost::thread(boost::bind(&peer::iorun,this)));
     struct timeval tv;
     tv.tv_sec=8;
     tv.tv_usec=0;
@@ -56,8 +57,12 @@ public:
   }
 
   void stop() // by server only
-  { DLOG("%04X PEER KILL %d<->%d\n",svid,socket_.local_endpoint().port(),port);
+  { boost::system::error_code errorcode;
+    DLOG("%04X PEER KILL %d<->%d\n",svid,socket_.local_endpoint().port(),port);
     killme=true;
+    socket_.cancel();
+    socket_.close();
+    peer_io_service_.reset();
     peer_io_service_.stop();
     //DLOG("%04X PEER INTERRUPT\n",svid);
     //boost::this_thread::sleep(boost::posix_time::milliseconds(100));
@@ -66,9 +71,11 @@ public:
     //DLOG("%04X PEER JOIN\n",svid);
     if(iothp_ != NULL){
       iothp_->join();} //try joining yourself error
-    //DLOG("%04X PEER CLOSE\n",svid);
-    socket_.close();
+    //socket_.cancel();
+    //socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both,errorcode);
+    //socket_.close();
     //socket_.release(NULL);
+    DLOG("%04X PEER CLOSED\n",svid);
   }
 
   void leave()
@@ -79,6 +86,7 @@ public:
 
   void accept() //only incoming connections
   { assert(incoming_);
+    //killme=false; //connection established
     addr = socket_.remote_endpoint().address().to_string();
     port = socket_.remote_endpoint().port();
     DLOG("%04X PEER CONNECT OK %d<->%s:%d\n",svid,socket_.local_endpoint().port(),
@@ -91,8 +99,9 @@ public:
   void connect(const boost::system::error_code& error) //only outgoing connection
   { if(error){
       DLOG("%04X PEER ACCEPT ERROR\n",svid);
-      killme=true;
+      killme=true; // not needed, as now killme=true is initial state for outgoing connections
       return;}
+    killme=false; //connection established
     assert(!incoming_);
     addr = socket_.remote_endpoint().address().to_string();
     port = socket_.remote_endpoint().port();
@@ -361,6 +370,7 @@ Aborted
     busy=0; // any incomming data resets the busy flag indicating a responsive peer
     bytes_in+=read_msg_->len;
     files_in++;
+    last_active=time(NULL); // protect from disconnect
     read_msg_->know_insert_(svid);
     if(read_msg_->data[0]==MSGTYPE_USR){ //len can be message::header_length in this case :-(
       //FIXME, accept only if needed !!
@@ -1151,6 +1161,7 @@ Aborted
       else{
         ELOG("%04X Authenticated, peer in sync\n",svid);
         update_sync();
+        last_active=now; // protect from disconnect
         do_sync=0;}
       return(1);}
     // try syncing from this server
@@ -1191,6 +1202,7 @@ Aborted
       server_.last_srvs_.header(sync_hs.head);} // set new starting point for headers synchronisation
     handle_read_headers();
     //FIXME, brakes assert in send_sync() !!!
+    last_active=now; // protect from disconnect
     do_sync=0; // set peer in sync, we are not in sync (server_.do_sync==1)
     return(1);
   }
@@ -1679,6 +1691,8 @@ Aborted
     boost::asio::async_read(socket_,
       boost::asio::buffer(read_msg_->data,message::header_length),
       boost::bind(&peer::handle_read_header,shared_from_this(),boost::asio::placeholders::error));
+    //save last synced block to protect peer from disconnect
+    last_active=BLOCK_MODE;
     BLOCK_MODE=0;
     BLOCK_SERV=false;
     BLOCK_PEER=false;
@@ -1775,11 +1789,12 @@ Aborted
   int do_sync; // needed by server::get_more_headers , FIXME, remove this, user peer_hs.do_sync
   bool killme; // kill process initiated
   uint32_t busy; // waiting for response (used during sync load balancing) set to last request time
+  uint32_t last_active; // updated with every block sync, protects from disconnect, could be read only (private)
 private:
   boost::asio::io_service peer_io_service_;	//TH
   boost::asio::io_service::work work_;		//TH
   boost::asio::ip::tcp::socket socket_;
-  boost::thread *iothp_;			//TH
+  std::unique_ptr<boost::thread> iothp_;	//TH
   server& server_;
   bool incoming_;
   servers& srvs_; //FIXME ==server_.srvs_
