@@ -1,7 +1,8 @@
 #ifndef PEER_HPP
 #define PEER_HPP
 
-class peer : public boost::enable_shared_from_this<peer>
+//class peer : public boost::enable_shared_from_this<peer>
+class peer : public std::enable_shared_from_this<peer>
 {
 public:
   peer(server& srv,bool in,servers& srvs,options& opts) :
@@ -39,7 +40,7 @@ public:
   ~peer()
   { if(port||1){
       uint32_t ntime=time(NULL);
-      DLOG("%04X PEER destruct %s:%d @%08X log: blk/%03X/%05X/log.txt\n\n",svid,addr.c_str(),port,ntime,srvs_.now>>20,srvs_.now&0xFFFFF);
+      DLOG("%04X PEER destruct %s:%d @%08X log: blk/%03X/%05X/log.txt\n",svid,addr.c_str(),port,ntime,srvs_.now>>20,srvs_.now&0xFFFFF);
       }
   }
 
@@ -58,19 +59,29 @@ public:
 
   void stop() // by server only
   { boost::system::error_code errorcode;
-    DLOG("%04X PEER KILL %d<->%d\n",svid,socket_.local_endpoint().port(),port);
+    //DLOG("%04X STOP start\n",svid);
     killme=true;
-    socket_.cancel();
-    socket_.close();
-    peer_io_service_.reset();
+    //socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both,errorcode);
+    if(socket_.is_open()){
+      DLOG("%04X PEER KILL %d<->%d\n",svid,socket_.local_endpoint().port(),port);
+      socket_.cancel();
+      //DLOG("%04X CLOSE SOCKET\n",svid);
+      socket_.close();
+      boost::this_thread::sleep(boost::posix_time::milliseconds(999)); // mus sleep to let connect() fail
+      }
+    //DLOG("%04X RESET\n",svid);
+    //peer_io_service_.reset();
+    //DLOG("%04X STOP\n",svid);
     peer_io_service_.stop();
     //DLOG("%04X PEER INTERRUPT\n",svid);
     //boost::this_thread::sleep(boost::posix_time::milliseconds(100));
     //iothp_->interrupt();
     //boost::this_thread::sleep(boost::posix_time::milliseconds(100));
     //DLOG("%04X PEER JOIN\n",svid);
-    if(iothp_ != NULL){
-      iothp_->join();} //try joining yourself error
+    if(iothp_ != nullptr){
+      //DLOG("%04X IOTH CLOSING\n",svid);
+      iothp_->join(); //try joining yourself error
+      iothp_.reset(nullptr);}
     //socket_.cancel();
     //socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both,errorcode);
     //socket_.close();
@@ -100,6 +111,7 @@ public:
   { if(error){
       DLOG("%04X PEER ACCEPT ERROR\n",svid);
       killme=true; // not needed, as now killme=true is initial state for outgoing connections
+      //peer_io_service_.stop();
       return;}
     killme=false; //connection established
     assert(!incoming_);
