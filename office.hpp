@@ -602,6 +602,7 @@ public:
       get_user(u,svid,acc->second);
       if(u.weight>0){
 	accounts_.erase(acc->first);
+	account_.unlock();
         return(true);}
       account_.unlock();
       return(false);}
