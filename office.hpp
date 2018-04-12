@@ -600,7 +600,7 @@ public:
     if(acc!=accounts_.end()){
       user_t u;
       get_user(u,svid,acc->second);
-      if(u.weight>0){
+      if(u.weight>USER_MIN_MASS){
 	accounts_.erase(acc->first);
 	account_.unlock();
         return(true);}
