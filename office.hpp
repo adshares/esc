@@ -596,7 +596,13 @@ public:
   bool try_account(hash_s* key)
   { assert(svid);
     account_.lock();
-    if(accounts_.find(*key)!=accounts_.end()){
+    auto acc = accounts_.find(*key);
+    if(acc!=accounts_.end()){
+      user_t u;
+      get_user(u,svid,acc->second);
+      if(u.weight>0){
+	accounts_.erase(acc->first);
+        return(true);}
       account_.unlock();
       return(false);}
     if(accounts_.size()>MAX_USER_QUEUE){
@@ -619,7 +625,8 @@ public:
   }
 
   void add_key(hash_s* key,uint32_t user)
-  { assert(svid);
+  {
+    assert(svid);
     account_.lock();
     accounts_[*key]=user;
     account_.unlock();
