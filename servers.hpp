@@ -677,7 +677,7 @@ public:
 			if(i>1 && !nodes[i].msid){ // do not include nodes silent nodes
 				continue;}
 			svid_rank.push_back(i);}
-		std::sort(svid_rank.begin(),svid_rank.end(),[this](const uint16_t& i,const uint16_t& j){return(this->nodes[i].weight>this->nodes[j].weight);}); //fuck, lambda :-(
+		std::stable_sort(svid_rank.begin(),svid_rank.end(),[this](const uint16_t& i,const uint16_t& j){return(this->nodes[i].weight>this->nodes[j].weight);}); //fuck, lambda :-(
 		hashtree tree(NULL); //FIXME, waste of space
 		bzero(viphash,sizeof(hash_t));
 		std::string data; //first VIP is master (SERVER_UNO)

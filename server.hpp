@@ -1206,7 +1206,7 @@ public:
     else{
       for(auto sv : svid_rset){
         svid_rank.push_back(sv);}
-      std::sort(svid_rank.begin(),svid_rank.end(),[this](const uint16_t& i,const uint16_t& j){return(this->last_srvs_.nodes[i].weight>this->last_srvs_.nodes[j].weight);});} //fuck, lambda :-/
+      std::stable_sort(svid_rank.begin(),svid_rank.end(),[this](const uint16_t& i,const uint16_t& j){return(this->last_srvs_.nodes[i].weight>this->last_srvs_.nodes[j].weight);});} //fuck, lambda :-/
     //TODO, save this list
     cand_.lock();
     for(uint32_t j=0;j<VIP_MAX && j<svid_rank.size();j++){
