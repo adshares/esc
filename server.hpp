@@ -1790,7 +1790,7 @@ public:
     //blk_.unlock();
     DLOG("BLOCK: yes:%d no:%d max:%d\n",last_srvs_.vok,last_srvs_.vno,last_srvs_.vtot);
     update(msg); // update others if this is a VIP message, my message was sent already, but second check will not harm
-    if(last_srvs_.vok>last_srvs_.vtot/2 && opts_.svid){
+    if((last_srvs_.vok>last_srvs_.vtot/2 || last_srvs_.vok>=opts_.mins) && opts_.svid){
       uint32_t now=time(NULL);
       if(now<srvs_.now+BLOCKSEC){
         panic=false;
