@@ -14,3 +14,4 @@ tmp
 *.launch
 .settings/
 *.sublime-workspace
+.cproject
