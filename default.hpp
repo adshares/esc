@@ -17,7 +17,7 @@
 # define VIP_MAX 31 /* maximum number of VIP servers */
 #endif
 
-#define TOTALMASS 38758206000000000L /* total balance (target) */
+#define TOTALMASS 3875820600000000000L /* total balance (target) */
 #define MAX_USERS 0x40000000L /* maximum number of users in a node (1G => size:16GB) */
 #define LOCK_TIME (BLOCKDIV*BLOCKSEC) /*time needed for lock to start; LOCK_TIME => allow withdrawal*/
 
@@ -31,6 +31,8 @@
 #define MIN_LOG_SIZE (4096+2048) /* when this log size is reached try purging */
 #define MAX_LOG_AGE (0x800*BLOCKSEC) /* purge first 4096 bytes if older than this age */
 #define MAX_BLG_SIZE 0x8FFFFFF0L /* blog size larger than this will not be submitted to clients */
+
+#define AMOUNT_DECIMALS 11
 
 //#define MIN_MSGNUM 2 /*minimum number of messages to prevent hallo world, change to higher number later*/
 //#define MAX_USRWAIT 64 /*wait no more than 64s for a usr file*/
