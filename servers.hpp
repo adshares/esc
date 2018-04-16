@@ -1114,6 +1114,7 @@ public:
 			struct stat sb;
 			fstat(fd,&sb);
 			if(!sb.st_size){
+			  close(fd);
 				return false;}
 			nok=sb.st_size/sizeof(svsi_t);
 			data=(uint8_t*)malloc(8+nok*sizeof(svsi_t));
