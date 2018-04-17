@@ -1,0 +1,66 @@
+# Project language
+language: cpp
+
+# Allows use container-based infrastructure
+sudo: false
+
+addons:
+
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - g++-7
+  sonarcloud:
+    organization: "adshares-github"
+    token:
+      secure: secure: "hjk5bSXk8iMlLaaeuo2ow7plQLs5fRNUvzqn/zNhxiQfINFFDGGo5F7uA+LlZOFOg/DrpiKXhCAHzKD0X9IlXFFF3yfQKFP6p98THq1Q9/tT3gVVcS+VI2zBLIre7+Z0+clKQAbV+qR497yu9vhIenCNyaAUywtHBDCWmiu/PbjmCBZo2FuijuW0y/eRoxCDGRs39JkZ8H13O6JnyzJdR33QeZRfJCJ9j/Ouw0/UZoTbC2i4vGDNrBJ348oPZFoQzWOelhwPq3gX8mWsfAoLHiFMm5fV88vr8QBclnkJnxgC/q1tpUBwcCYmBfyxRbn7bkDM+uX20Arj0wH2vLUVn2d0m2PKFlMqV5KAUPcDaCEgvFw3T70y90AjPK2kul2IrNcx44HTDRwfe6xRlibTwJ2OsxjFMHSOB2oXi+ZyURUWfdULy6nYcvFbXEhA6bT75mzM4u2ApBgtITKdRY/3yKQudH6ELCb7tJEthJX+cKQY2iTNy5SoVcHyQwC1jLxBQZtt0ha49HvSk0aMUT5u5tMwlA/wN5ITzF3+/7J8B1A+wTjCMC9p9ewybOz6dZZw7NfV0ygI7TL0Qe5b4DVMq2ezH99XkSuhAvaAfhcyazIcUqZgk+m85g6r2e8LVt9pKyejObFEYsE71C1izt//PgOfRkkND5hPMyc6k4rljbc="
+    github_token:
+      secure: "S/uDns/BWkrSpmSuWX5sJxLUrHiIBMT1C1oYr7VQNTB8rie5ld2L95NwXtd/mrj6mNd4dK/xcFw83z+Q/bUvc4tXjOJS84pSdXfB43/s3wJhZit055QgaCyDV+hN8di46/+LdAV7anoeAIBwrVi1DmG8xJGglrFR9QxUoYS0U2o56+CYd9L8KhvcwJUixjk31A3zF8vQ+OmTLlJFiMA52g63a0zz2uTfr5vrbjRrcvhmB7DX+BG+1YfH41N5dBw4bRfkqu/HOKKwnbizOZJtCxklnPfMJlubi+8S82QXZJ4BmOsMl/ZjyQxL7HWYa7D1nNGAcwhzGKXz5hevJJQVOdH1v/EihJRXBUrts9j1aS6OZ7bS3zRz+Lnr1PUYtW3hX4xVoyHSMxEv9ww6e646kPYnsMA0KcbBHwa+WppoPBAQEpS+SsdQ2VlDmNNhycia3ok5/ZHUG4yI0e/Fgr9PW+bVppNF1Hq3eqQRLvgUXpORVki6pz/Jd0aijLDukRhMCjfTehQfBVYhK3Xl8hB3MAy8tX3hpGzj+9M6Stam4UyB1kkgA3uiGJUTjM1cg3DzPpAIRfxYmqswGgEs6OdN/UcaPERjL9i/ON3TIjjpEw1TLLBnjEiGukL04PooCzHyaeo2nJO6QGLrocr+lVYYx2V/7zS7O2KPEzvHdGpmKqI="
+    
+env:
+  - GCC_EVAL="CC=gcc-7 && CXX=g++-7"   
+  
+before_install:
+  - eval "${GCC_EVAL}"
+  - sudo apt-get install openssl libboost-all-dev libssl-dev
+
+stages:
+  - configure
+  - build
+  - quality
+#  - test
+
+jobs:
+  include:
+    # ED25519 test
+    - stage: configure
+      script:
+        - cd ed25519
+        - make -f Makefile.sse2
+        - ./mytest
+        - make clean
+        - make
+        - ./mytest
+        - cd ..
+  
+    - stage: build
+      script: make
+      
+    # Sonar Qube
+    - stage: quality
+      script: sonar-scanner
+      
+    # Selenium tests
+    #- stage: test
+    #  script:  
+
+# After a build, send email notification with the build results
+notifications:
+  email: false
+  slack:
+    rooms:
+      secure: "AvNB3B0wIyNMIBS/nUaXN+UKLvspmSiEdITlB5I/O+nJw2GE+ksYDcjezlIYzAZsJYIfkRw5AOhSg6zuebgJDwZPnF82XKtJVyiUqib/A3s3C/kU0a4Z/ObtVHzRAxMs8y0jZvHV9o1GJxKRqcG5d5/R5woDXidDW3MjM5N8EHZtX08K56O9KrcBJsHzApHgfdunQNF69xtXRKjnS86EzzgvAd1KY+6oX4TfqD42sA1tvsI8ppX0A5HkZ++pcLxLi/QUhu7uz7coj7yjdrx3jfmEsvUbTc13yUKrXXlFpyOBmim+zqWFhlWSOgV96SfJAqk8cyPQoJJm8UiyspexeYFDMsTNI+en6xkjb8rSuRPgdmsI6jtk5Qg4i0irWzBsW6xsFyqo40GDJ0/dnq8IjV/2irJhJR5wl5w9VeRJd+c8vk36bD7Wm+0gXF83jj1bfv/Os0Q7og199X+mSIcB5pIJkGrIKce9wyqTumsN04YAjtKArCBt7wGIEMJpLB8Wb0mKt1+aw8/LYdKUydhvD6Hyj8Q4HNhSgMQfIsa7GnhwOdBovm5FxfAe4rbSYNWRNOaPKjFG+yfcO1b2SK4lQq71IBUy2SlP1WOFaO/VHgPZXukgrsxoTLdc7s7dUyyUjD9Wwm9bqIRPdVKIKYu629j/i0BwRvR0YBQRV0relec="
+    on_success: change
+    on_failure: always
