@@ -27,7 +27,7 @@
 #define VALIDATORS 8 /* number of validator threads */
 #define SYNC_WAIT 8 /* wait before another attempt to download servers */
 #define MAX_CHECKQUE 8 /*maximum check queue size for emidiate message requests*/
-#define MAX_USER_QUEUE 0x10000 /* maximum number of accounts in create_account queue ("blacklist") */
+#define MAX_USER_QUEUE 65536 /* maximum number of accounts in create_account queue ("blacklist") */
 #define MIN_LOG_SIZE (4096+2048) /* when this log size is reached try purging */
 #define MAX_LOG_AGE (0x800*BLOCKSEC) /* purge first 4096 bytes if older than this age */
 #define MAX_BLG_SIZE 0x8FFFFFF0L /* blog size larger than this will not be submitted to clients */
@@ -90,33 +90,37 @@
 #define MSGTYPE_NHD 24  /* next header data */
 #define MSGTYPE_SOK 99  /* peer synced */
 
-#define TXS_MIN_FEE      (0x1000) /* minimum fee per transaction */
-#define TXS_DIV_FEE      (0x100000)  /* dividend fee collected every BLOCKDIV blocks ( *8_years=MIN_MASS ) */
-#define TXS_KEY_FEE      (0x1000) /* */
-#define TXS_BRO_FEE(x)   (0x1000  +0x10000*(x)) /* + len_fee (length) MAX_BLG_SIZE=1G */
-#define TXS_PUT_FEE(x)   (0x1000  +((x)>>13)) /* local wires fee (weight) (/8192) */ // 0.0244%
-#define TXS_LNG_FEE(x)   (         ((x)>>13)) /* additional remote wires fee (weight) */
-#define TXS_MPT_FEE(x)   (0x100   +((x)>>13)) /* + MIN_FEE !!! */
-#define TXS_GET_FEE      (0x100000) /* get initiation fee */
-#define TXS_GOK_FEE(x)   (         ((x)>>12)) /* get wire fee (allways remote) */ // 0.0122%
-#define TXS_USR_FEE      (0x100000) /* 0x0.001G only for remote applications, otherwise MIN_FEE */
-#define TXS_SUS_FEE      (0x10000) /* 0x0.0001G */
-#define TXS_SBS_FEE      (0x10000) /* 0x0.0001G */
-#define TXS_UUS_FEE      (0x10000) /* 0x0.0001G */
-#define TXS_UBS_FEE      (0x10000) /* 0x0.0001G */
-#define TXS_SAV_FEE      (0x100000) /* 0x0.0001G */
-#define TXS_BNK_FEE      (0x10000000L) /* 0x0.1 G */
-#define TXS_BKY_FEE      (0x10000000L) /* 0x0.1 G */
-#define USER_MIN_MASS    (0x10000000L) /* 0x0.1 G minimum user account mass to send transaction */
-#define USER_MIN_AGE     (BLOCKSEC*4) /* wait at least 4 blocks before deleting an account */
-#define BANK_MIN_UMASS   (0x10000000L) /* 0x0.1G, minimum admin account mass to send transaction */
-#define BANK_MIN_TMASS   (0x1000000000L) /* 0x10G, if bank total mass below this value, bank can be taken over */
-#define BANK_MIN_MTIME   (0x200*BLOCKSEC) /* if no transaction in this period bank can be taken over */
-#define BANK_MAX         (0xffff)
-#define BANK_PROFIT(x)   ((x)>>4) /* 1/16 of fees */
-#define BANK_USER_FEE(x) (0x1000 + ((BANK_PROFIT(((uint64_t)(x))*(TXS_DIV_FEE/BLOCKDIV)))>>2)) /* every block */
+#define ONE_YEAR (3600*24*365)
 
-#define MESSAGE_FEE(x)  (0x1000 + (x)) /* fee for each bank message */
+#define TXS_MIN_FEE      10000L     //(0x1000) /* minimum fee per transaction */
+#define TXS_DIV_FEE      (100000000L * BLOCKSEC * BLOCKDIV / ONE_YEAR)  //(0x100000)  /* dividend fee collected every BLOCKDIV blocks ( $0.1 / year ) */
+#define TXS_KEY_FEE      10000000L     //(0x1000) /* */
+#define TXS_BRO_FEE(x)   (TXS_MIN_FEE + 50000*(x)) /* + len_fee (length) MAX_BLG_SIZE=1G */
+#define TXS_PUT_FEE(x)   ((x) / 2000) /* local wires fee (weight)*/ // 0.05%
+#define TXS_LNG_FEE(x)   ((x) / 2000) /* additional remote wires fee (weight)   0.05% */
+#define TXS_MPT_FEE(x)   ((x) / 2000) /* local multiple wires fee (weight) 0.05% */
+#define TXS_GET_FEE      (1000000) /* get initiation fee */
+#define TXS_GOK_FEE(x)   ((x) / 1000) /* get wire fee (allways remote) 0.1% */
+#define TXS_USR_FEE      (100000000L) /* create user fee */
+#define TXS_RUS_FEE      (100000000L) /* additional create user fee for remote applications */
+#define TXS_SUS_FEE      (10000000L) /*  */
+#define TXS_SBS_FEE      (10000000L) /*  */
+#define TXS_UUS_FEE      (10000000L) /*  */
+#define TXS_UBS_FEE      (10000000L) /*  */
+#define TXS_SAV_FEE      (10000000L) /*  */
+#define TXS_BNK_FEE      (100000000000000L) /* 1000 ADS */
+#define TXS_BKY_FEE      (10000000000L) /*  */
+#define USER_MIN_MASS    (1000L) /* minimum user account mass to send transaction (must be at least TXS_DIV_FEE to prevent message invalidation because of dividend fee)  */
+#define USER_MIN_AGE     (BLOCKSEC*10000L) /* wait at least 10000 blocks before deleting an account */
+#define BANK_MIN_UMASS   (1000000000000L) /* minimum admin account mass to send transaction (1 ADST) */
+#define BANK_MIN_TMASS   (0L) /* if bank total mass <= this value, bank can be taken over AND */
+#define BANK_MIN_MTIME   (1000L*BLOCKSEC) /* AND if no transaction in this period bank can be taken over */
+#define BANK_PROFIT(x)   (x/16) /* 1/16 of fees */
+#define BANK_USER_FEE(x) (1000000L * (x) * BLOCKSEC / ONE_YEAR) /* every block */
+#define MESSAGE_FEE(x)   (4096L+(x)) /* fee for each bank message */
+
+#define BANK_MAX         (0xffff)  // Max number of banks. svid must be lower
+
 #define MESSAGE_TOO_LONG 0x800000 /* 8MB */
 #define MESSAGE_LEN_OK   0x10000
 #define MESSAGE_TNUM_OK  0x1000

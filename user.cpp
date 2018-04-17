@@ -13,6 +13,7 @@
 #include <boost/optional/optional.hpp>
 #include <boost/program_options.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/multiprecision/cpp_int.hpp>
 //#include <boost/serialization/list.hpp>
 //#include <boost/serialization/vector.hpp>
 #include <boost/shared_ptr.hpp>
@@ -122,9 +123,9 @@ bool parse_key(uint8_t* to_key,boost::optional<std::string>& json_key,int len)
 bool parse_amount(int64_t& amount,std::string str_amount) {
   size_t dot_pos = str_amount.find('.');
   if(dot_pos == std::string::npos) {
-    str_amount.insert(str_amount.size(), AMOUNT_DECIMALS, '0');
+    str_amount.insert(str_amount.length(), AMOUNT_DECIMALS, '0');
   } else {
-    size_t after_dot = str_amount.size() - dot_pos - 1;
+    size_t after_dot = str_amount.length() - dot_pos - 1;
     if(after_dot == 0 || after_dot > AMOUNT_DECIMALS) {
       return(false);
     }
@@ -140,11 +141,12 @@ bool parse_amount(int64_t& amount,std::string str_amount) {
 
 char* print_amount(int64_t amount) {
   static char text[32];
+  uint is_neg = amount<0?1:0;
   std::string str_amount = std::to_string(amount);
-  if(str_amount.size() < AMOUNT_DECIMALS + 1) {
-  	str_amount.insert(0, AMOUNT_DECIMALS + 1 - str_amount.size(), '0');
+  if(str_amount.length() < AMOUNT_DECIMALS + 1 + is_neg) {
+  	str_amount.insert(is_neg, AMOUNT_DECIMALS + 1 + is_neg - str_amount.length(), '0');
   }
-  str_amount.insert(str_amount.size() - AMOUNT_DECIMALS, 1, '.');
+  str_amount.insert(str_amount.length() - AMOUNT_DECIMALS, 1, '.');
   strncpy(text, str_amount.c_str(), sizeof(text));
   return(text);
 }
@@ -327,7 +329,7 @@ usertxs_ptr run_json(settings& sts,char* line,int64_t& deduct,int64_t& fee)
     uint32_t to_num=0;
     std::string text;
     //deduct=0;
-    fee=TXS_MIN_FEE;
+    fee=0;
     for(boost::property_tree::ptree::value_type &wire : pt.get_child("wires")){
       uint16_t tbank;
       uint32_t tuser;
@@ -347,6 +349,9 @@ usertxs_ptr run_json(settings& sts,char* line,int64_t& deduct,int64_t& fee)
       if(sts.bank!=tbank){
         fee+=TXS_LNG_FEE(tmass);}
       to_num++;}
+    if(fee<TXS_MIN_FEE) {
+      fee = TXS_MIN_FEE;
+    }
     if(!to_num){
       return(NULL);}
     txs=boost::make_shared<usertxs>(TXSTYPE_MPT,sts.bank,sts.user,sts.msid,now,to_num,to_user,to_mass,to_info,text.c_str());}
@@ -358,16 +363,20 @@ usertxs_ptr run_json(settings& sts,char* line,int64_t& deduct,int64_t& fee)
     deduct=to_mass;
     fee=TXS_PUT_FEE(to_mass);
     if(sts.bank!=to_bank){
-      fee+=TXS_LNG_FEE(to_mass);}}
+      fee+=TXS_LNG_FEE(to_mass);}
+      if(fee<TXS_MIN_FEE) {
+        fee = TXS_MIN_FEE;
+      }
+    }
   else if(!run.compare(txsname[TXSTYPE_USR])){
     if(!to_bank){
       to_bank=sts.bank;}
     txs=boost::make_shared<usertxs>(TXSTYPE_USR,sts.bank,sts.user,sts.msid,now,to_bank,to_user,to_mass,to_info,(const char*)NULL);
     deduct=USER_MIN_MASS;
     if(sts.bank==to_bank){
-      fee=TXS_MIN_FEE;}
+      fee=TXS_USR_FEE;}
     else{
-      fee=TXS_USR_FEE;}}
+      fee=TXS_USR_FEE + TXS_RUS_FEE;}}
   else if(!run.compare(txsname[TXSTYPE_BNK])){
     txs=boost::make_shared<usertxs>(TXSTYPE_BNK,sts.bank,sts.user,sts.msid,now,to_bank,to_user,to_mass,to_info,(const char*)NULL);
     deduct=BANK_MIN_TMASS;
@@ -648,11 +657,13 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
     logentry.put("amount",print_amount(ulog.weight));
     //FIXME calculate fee
     if(txst==TXSTYPE_PUT){
-      int64_t amass=fabsl(ulog.weight);
+      int64_t fee;
       if(ulog.node==sts.bank){
-        logentry.put("sender_fee",print_amount(TXS_PUT_FEE(amass)));}
+        fee = TXS_PUT_FEE(std::abs(ulog.weight));}
       else{
-        logentry.put("sender_fee",print_amount(TXS_PUT_FEE(amass)+TXS_LNG_FEE(amass)));}
+        fee = TXS_PUT_FEE(std::abs(ulog.weight))+TXS_LNG_FEE(std::abs(ulog.weight));}
+
+      logentry.put("sender_fee",print_amount(fee<TXS_MIN_FEE?TXS_MIN_FEE:fee));
       logentry.put("message",info);}
     else{
       int64_t weight;
@@ -671,10 +682,10 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
       logentry.put("sender_amount",print_amount(deduct));
       if(txst==TXSTYPE_MPT){
         if(ulog.node==sts.bank){
-          logentry.put("sender_fee",print_amount(TXS_MPT_FEE(ulog.weight)+(key[5]?TXS_MIN_FEE:0)));}
+          logentry.put("sender_fee",print_amount((int64_t)((boost::multiprecision::int128_t)fee * std::abs(ulog.weight) / deduct)));}
         else{
           logentry.put("sender_fee",
-            print_amount(TXS_MPT_FEE(ulog.weight)+TXS_LNG_FEE(ulog.weight)+(key[5]?TXS_MIN_FEE:0)));}
+            print_amount((int64_t)((boost::multiprecision::int128_t)fee * std::abs(ulog.weight) / deduct)));}
         logentry.put("sender_fee_total",print_amount(fee));
         key_hex[2*5]='\0';
         logentry.put("sender_public_key_prefix_5",key_hex);}

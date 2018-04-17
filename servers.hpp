@@ -122,7 +122,7 @@ public:
 			memcpy(nn.pk,hash,32);
 			nodes.push_back(nn);
 			nodes.push_back(nn);}
-		int64_t stw=TOTALMASS/(nodes.size()-1)*0.99; //FIXME, remove initial tax of 1%
+		int64_t stw=TOTALMASS/(nodes.size()-1); // removed initial tax of 1%
 		for(auto it=nodes.begin();it<nodes.end();it++,num++){
 			memset(it->msha,0xff,SHA256_DIGEST_LENGTH); //TODO, start servers this way too
 			memcpy(it->msha,&num,2); // always start with a unique hash
@@ -137,7 +137,7 @@ public:
 				it->users=1;
 				// create the first user
 				user_t u;
-				init_user(u,num,0,stw-num,it->pk,now,num,0);
+				init_user(u,num,0,stw,it->pk,now,num,0);
 				put_user(u,num,0);
 				//update_nodehash(num);
 				memcpy(it->hash,u.csum,SHA256_DIGEST_LENGTH);
@@ -164,7 +164,7 @@ public:
 	void write_start()
 	{	FILE* fp=fopen("blk/start.txt","w");
 		if(fp==NULL){
-			throw("FATAL ERROR: failed to write to blk/start.txt\n");}
+			ELOG("FATAL ERROR: failed to write to blk/start.txt\n");exit(-1);}
 		fprintf(fp,"%08X\n",now);
 		fclose(fp);
 	}

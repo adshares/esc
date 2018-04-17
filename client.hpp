@@ -540,7 +540,11 @@ public:
       deduct=utxs.tmass;
       fee=TXS_PUT_FEE(utxs.tmass);
       if(utxs.abank!=utxs.bbank){
-        fee+=TXS_LNG_FEE(utxs.tmass);}}
+        fee+=TXS_LNG_FEE(utxs.tmass);}
+      if(fee<TXS_MIN_FEE) {
+        fee = TXS_MIN_FEE;
+      }
+    }
     else if(*buf==TXSTYPE_MPT){
       char* tbuf=utxs.toaddresses(buf);
       //utxs.print_toaddresses(buf,utxs.bbank);
@@ -551,7 +555,7 @@ public:
       std::set<uint64_t> out;
       union {uint64_t big;uint32_t small[2];} to;
       to.small[1]=0;
-      fee=TXS_MIN_FEE;
+      fee=0;
       for(int i=0;i<utxs.bbank;i++,tbuf+=6+8){
         uint32_t& tuser=to.small[0];
         uint32_t& tbank=to.small[1];
@@ -579,14 +583,17 @@ public:
         if(utxs.abank!=tbank){
           fee+=TXS_LNG_FEE(tmass);}
         utxs.tmass+=tmass;}
+      if(fee<TXS_MIN_FEE) {
+        fee = TXS_MIN_FEE;
+      }
       deposit=utxs.tmass;
       deduct=utxs.tmass;}
     else if(*buf==TXSTYPE_USR){
       deduct=USER_MIN_MASS;
       if(utxs.abank!=utxs.bbank){
-        fee=TXS_USR_FEE;}
+        fee=TXS_USR_FEE + TXS_RUS_FEE;}
       else{
-        fee=TXS_MIN_FEE;}
+        fee=TXS_USR_FEE;}
       if(deduct+fee+USER_MIN_MASS>usera.weight){ //check in advance before creating new user
         DLOG("ERROR: too low balance %ld+%ld+%ld>%ld\n",deduct,fee,USER_MIN_MASS,usera.weight);
         return;}

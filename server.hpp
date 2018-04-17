@@ -50,6 +50,7 @@ public:
     start_path=lastpath;
     start_msid=msid_;
     last_srvs_.get(lastpath);
+
     if(opts_.svid){
       if(!last_srvs_.nodes.size()){
         if(!opts_.init){
@@ -57,8 +58,9 @@ public:
           exit(-1);}
         ELOG("CREATING first node\n");}
       else if((int)last_srvs_.nodes.size()<=(int)opts_.svid){
-        ELOG("ERROR reading servers (size:%d)\n",(int)last_srvs_.nodes.size());
-        exit(-1);}}
+        ELOG("ERROR reading servers svid too high(%d) (size:%d)\n",(int)opts_.svid,(int)last_srvs_.nodes.size());
+        exit(-1);}
+    }
     else{
       int fd=open_bank(0);
       if(fd>=0){
@@ -746,7 +748,8 @@ public:
     fscanf(fp,"%X %X %X %lX %lX %lX %lX",&msid_,&path,&svid,h+3,h+2,h+1,h+0);
     fclose(fp);
     if(svid!=(uint32_t)opts_.svid){
-      throw("FATAL ERROR: failed to read correct svid from msid.txt\n");}
+      ELOG("FATAL ERROR: failed to read correct svid from msid.txt\n");
+      exit(-1);}
     return(path);
   }
 
@@ -754,7 +757,7 @@ public:
   void writemsid()
   { FILE* fp=fopen("msid.txt","w");
     if(fp==NULL){
-      throw("FATAL ERROR: failed to write to msid.txt\n");}
+      ELOG("FATAL ERROR: failed to write to msid.txt\n");exit(-1);}
     uint64_t *h=(uint64_t*)&msha_;
     fprintf(fp,"%08X %08X %04X %016lX %016lX %016lX %016lX\n",msid_,last_srvs_.now,opts_.svid,h[3],h[2],h[1],h[0]);
     fclose(fp);
@@ -2544,7 +2547,11 @@ public:
           if(utxs.bbank==opts_.svid){
             myput_fee+=TXS_LNG_FEE(utxs.tmass);}
           remote_fee+=TXS_LNG_FEE(utxs.tmass);
-          fee+=TXS_LNG_FEE(utxs.tmass);}}
+          fee+=TXS_LNG_FEE(utxs.tmass);}
+          if(fee<TXS_MIN_FEE) {
+            fee = TXS_MIN_FEE;
+          }
+        }
       else if(*p==TXSTYPE_MPT){
         char* tbuf=utxs.toaddresses(p);
         utxs.tmass=0;
@@ -2555,7 +2562,7 @@ public:
         std::set<uint64_t> out;
         union {uint64_t big;uint32_t small[2];} to;
         to.small[1]=0;
-        fee=TXS_MIN_FEE;
+        fee=0;
         for(int i=0;i<utxs.bbank;i++,tbuf+=6+8){
           uint32_t& tuser=to.small[0];
           uint32_t& tbank=to.small[1];
@@ -2598,6 +2605,9 @@ public:
             remote_fee+=TXS_LNG_FEE(tmass);
             fee+=TXS_LNG_FEE(tmass);}
           utxs.tmass+=tmass;}
+        if(fee<TXS_MIN_FEE) {
+          fee = TXS_MIN_FEE;
+        }
         deduct=utxs.tmass;}
       else if(*p==TXSTYPE_USR){ // this is local bank
         if(utxs.abank!=utxs.bbank){
@@ -2611,9 +2621,9 @@ public:
             ofip_add_remote_user(utxs.abank,utxs.auser,usera->pkey);}}
         deduct=USER_MIN_MASS;
         if(utxs.abank!=utxs.bbank){
-          fee=TXS_USR_FEE;}
+          fee=TXS_USR_FEE + TXS_RUS_FEE;}
         else{
-          fee=TXS_MIN_FEE;}}
+          fee=TXS_USR_FEE;}}
       else if(*p==TXSTYPE_BNK){ // we will get a confirmation from the network
         uint64_t ppb=make_ppi(tmpos,omsid,msg->msid,msg->svid,msg->svid); //not utxs.bbank
         txs_bnk[ppb]=utxs.auser;
@@ -3144,7 +3154,7 @@ public:
       std::set<uint64_t> new_bnk; // list of available banks for takeover
       uint16_t peer=0;
       for(auto it=srvs_.nodes.begin()+1;it!=srvs_.nodes.end();it++,peer++){ // start with bank=1
-        if(it->mtim+BANK_MIN_MTIME<srvs_.now && it->weight<BANK_MIN_TMASS){
+        if(it->mtim+BANK_MIN_MTIME<srvs_.now && it->weight<=BANK_MIN_TMASS){
           uint64_t bnk=it->weight<<16;
           bnk|=peer;
           new_bnk.insert(bnk);}} //unused
