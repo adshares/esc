@@ -115,7 +115,7 @@
 #define BANK_MIN_UMASS   (1000000000000L) /* minimum admin account mass to send transaction (1 ADST) */
 #define BANK_MIN_TMASS   (0L) /* if bank total mass <= this value, bank can be taken over AND */
 #define BANK_MIN_MTIME   (1000L*BLOCKSEC) /* AND if no transaction in this period bank can be taken over */
-#define BANK_PROFIT(x)   (x/16) /* 1/16 of fees */
+#define BANK_PROFIT(x)   ((x)/16) /* 1/16 of fees */
 #define BANK_USER_FEE(x) (1000000L * (x) * BLOCKSEC / ONE_YEAR) /* every block */
 #define MESSAGE_FEE(x)   (4096L+(x)) /* fee for each bank message */
 

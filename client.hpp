@@ -762,6 +762,9 @@ public:
         tlog.weight=utxs.tmass;}
       else{
         tlog.weight=-deduct;} // includes deducts in TXSTYPE_BNK TXSTYPE_USR
+      if(*buf==TXSTYPE_BNK || *buf==TXSTYPE_KEY || *buf==TXSTYPE_BKY) {
+        tlog.node = 0;
+      }
       offi_.put_ulog(utxs.auser,tlog);}
 
     if(*buf==TXSTYPE_MPT && mpt_user.size()>0){

@@ -531,7 +531,9 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
     logentry.put("date",mydate(ulog.time));
     logentry.put("type_no",ulog.type);
     // FIXME: properly flag confirmed transactions, which will not be rolled back
-    logentry.put("confirmed", 1);
+    uint32_t prev_block=time(NULL);
+    prev_block-=prev_block%BLOCKSEC;
+    logentry.put("confirmed", ulog.time < prev_block - VIP_MAX*VOTE_DELAY ? "yes" : "no");
     if(txst<TXSTYPE_MAX){
       logentry.put("type",logname[txst]);}
     if(ulog.type & 0x4000){ //errors
@@ -582,13 +584,17 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
         continue;}
       if(txst==TXSTYPE_DIV){ //dividend
         logentry.put("node_msid",ulog.nmid);
-        logentry.put("node_block",ulog.mpos);
+        char blockhex[9];
+        blockhex[8]='\0';
+        sprintf(blockhex,"%08X",ulog.mpos);
+        logentry.put("block_id",blockhex);
         logentry.put("dividend",print_amount(ulog.weight));
         logtree.push_back(std::make_pair("",logentry));
         continue;}
       if(txst==TXSTYPE_FEE){ //bank profit
-        logentry.put("profit",print_amount(ulog.weight));
+
         if(ulog.nmid){ // bank profit on transactions
+          logentry.put("profit",print_amount(ulog.weight));
           logentry.put("node",ulog.node);
           logentry.put("node_msid",ulog.nmid);
           if(ulog.nmid==sts.bank){
@@ -603,7 +609,10 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
             //logentry.put("profit_put",print_amount(put)); //FIXME, useless !!!
             }}
         else{ // bank profit at block end
-          logentry.put("node_block",ulog.mpos);
+          char blockhex[9];
+          blockhex[8]='\0';
+          sprintf(blockhex,"%08X",ulog.mpos);
+          logentry.put("block_id",blockhex);
           int64_t div;
           int64_t usr;
           int64_t get;
@@ -615,12 +624,16 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
           logentry.put("profit_div",print_amount(div));
           logentry.put("profit_usr",print_amount(usr));
           logentry.put("profit_get",print_amount(get));
+          logentry.put("profit",print_amount(div+usr+get));
           logentry.put("fee",print_amount(fee));}
         logtree.push_back(std::make_pair("",logentry));
         continue;}
       if(txst==TXSTYPE_UOK){ //creare remote account
         logentry.put("node",ulog.node);
-        logentry.put("node_block",ulog.mpos);
+        char blockhex[9];
+        blockhex[8]='\0';
+        sprintf(blockhex,"%08X",ulog.mpos);
+        logentry.put("block_id",blockhex);
         if(ulog.user){
           logentry.put("account",ulog.user);
           logentry.put("address",acnt);
@@ -635,7 +648,10 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
         logtree.push_back(std::make_pair("",logentry));
         continue;}
       if(txst==TXSTYPE_BNK){
-        logentry.put("node_block",ulog.mpos);
+        char blockhex[9];
+        blockhex[8]='\0';
+        sprintf(blockhex,"%08X",ulog.mpos);
+        logentry.put("block_id",blockhex);
         if(ulog.node){
           logentry.put("node",ulog.node);
           logentry.put("request","accepted");}
@@ -645,11 +661,16 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
         logentry.put("public_key",info);
         logtree.push_back(std::make_pair("",logentry));
         continue;}}
-    logentry.put("node",ulog.node);
-    logentry.put("account",ulog.user);
-    logentry.put("address",acnt);
+    if(ulog.node > 0) {
+      logentry.put("node",ulog.node);
+      logentry.put("account",ulog.user);
+      logentry.put("address",acnt);
+    }
     if(!ulog.nmid){
-      logentry.put("node_block",ulog.mpos);}
+      char blockhex[9];
+      blockhex[8]='\0';
+      sprintf(blockhex,"%08X",ulog.mpos);
+      logentry.put("block_id",blockhex);}
     else{
       logentry.put("node_msid",ulog.nmid);
       logentry.put("node_mpos",ulog.mpos);
