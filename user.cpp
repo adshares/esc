@@ -31,6 +31,7 @@
 #include <iterator>
 #include <list>
 #include <openssl/sha.h>
+#include <openssl/rand.h>
 #include <set>
 #include <sstream>
 #include <stack>
