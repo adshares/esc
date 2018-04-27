@@ -1,0 +1,22 @@
+{
+    "nodes": [
+        {
+            "public_key": "7D21F4EE7DE72EEDDC2EBFFEC5E7F33F140A975A629EE312075BB04610A9CFFF",
+            "accounts": [
+                {
+                    "balance": "19000000",
+                    "public_key": "7D21F4EE7DE72EEDDC2EBFFEC5E7F33F140A975A629EE312075BB04610A9CFFF"
+                }
+            ]
+        },
+        {
+            "public_key": "82C550EB577C9C1230E884957D237534FDB97E64C7E626AECCC0367DEC5A240B",
+            "accounts": [
+                {
+                    "balance": "18000000",
+                    "public_key": "82C550EB577C9C1230E884957D237534FDB97E64C7E626AECCC0367DEC5A240B"
+                }
+            ]
+        }
+    ]
+}

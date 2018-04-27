@@ -138,7 +138,6 @@ public:
       node nn;
 
       std::string node_pkey = e.second.get<std::string>("public_key");
-      std::cout << "public_key: " << node_pkey << "\n";
       ed25519_text2key(nn.pk,node_pkey.c_str(),32);
 
       for (auto& f : e.second.get_child("accounts")) {
