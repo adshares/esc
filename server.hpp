@@ -202,16 +202,6 @@ public:
 
     RETURN_ON_SHUTDOWN();
 
-    if(opts_.fast) {
-      char hash_text[2*SHA256_DIGEST_LENGTH];
-      ed25519_key2text(hash_text, last_srvs_.viphash, SHA256_DIGEST_LENGTH);
-      ELOG("Fast sync VIPHASH: %.*s\n", 2*SHA256_DIGEST_LENGTH, hash_text);
-      if(strncmp(hash_text, opts_.viphash.c_str(), 2*SHA256_DIGEST_LENGTH)) {
-        ELOG("Synced to invalid VIPHASH, expected %.*s\n", 2*SHA256_DIGEST_LENGTH, opts_.viphash.c_str());
-        throw new std::exception();
-      }
-    }
-
     recyclemsid(lastpath+BLOCKSEC);
     RETURN_ON_SHUTDOWN();
     writemsid(); // synced to new position
