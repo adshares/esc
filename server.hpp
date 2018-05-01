@@ -3925,7 +3925,7 @@ public:
         RETURN_ON_SHUTDOWN();}}
     if(!opts_.init){
       try{
-        if(!list.size() && last_srvs_.nodes.size()<=2 && opts_.dnsa.size()){ // load peers from DNS if no servers
+        if(!list.size() && opts_.dnsa.size()){ // load peers from DNS if no servers
           boost::asio::ip::tcp::resolver resolver(io_service_);
           boost::asio::ip::tcp::resolver::query query(opts_.dnsa.c_str(),SERVER_PORT);
           boost::asio::ip::tcp::resolver::iterator iterator = resolver.resolve(query);
