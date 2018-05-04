@@ -8,6 +8,7 @@
 # define MAX_MSGWAIT 0x2 /* start with 2 and change to 8: wait no more than 8s for a message */
 # define VOTE_DELAY 2 /*increase later (maybe monitor network delay)!!!*/
 # define VIP_MAX 7 /* maximum number of VIP servers */
+# define USER_MIN_AGE     (BLOCKSEC*2)
 #else
 # define BLOCKSEC 0x400 /* block period in seconds (17min) */
 # define BLOCKDIV 0x400 /* number of blocks for dividend update (dividend period 10 days) */
@@ -15,6 +16,7 @@
 # define MAX_MSGWAIT 0x10 /* wait no more than 16s for a message */
 # define VOTE_DELAY 4 /*increase later (maybe monitor network delay)!!!*/
 # define VIP_MAX 31 /* maximum number of VIP servers */
+#define USER_MIN_AGE     (BLOCKSEC*10000L) /* wait at least 10000 blocks before deleting an account */
 #endif
 
 #define TOTALMASS 3875820600000000000L /* total balance (target) */
@@ -112,7 +114,6 @@
 #define TXS_BNK_FEE      (100000000000000L) /* 1000 ADS */
 #define TXS_BKY_FEE      (10000000000L) /*  */
 #define USER_MIN_MASS    (1000L) /* minimum user account mass to send transaction (must be at least TXS_DIV_FEE to prevent message invalidation because of dividend fee)  */
-#define USER_MIN_AGE     (BLOCKSEC*10000L) /* wait at least 10000 blocks before deleting an account */
 #define BANK_MIN_UMASS   (1000000000000L) /* minimum admin account mass to send transaction (1 ADST) */
 #define BANK_MIN_TMASS   (0L) /* if bank total mass <= this value, bank can be taken over AND */
 #define BANK_MIN_MTIME   (1000L*BLOCKSEC) /* AND if no transaction in this period bank can be taken over */
@@ -246,12 +247,12 @@ typedef struct hash_cmp {
 #define SHUTDOWN_AND_RETURN() {std::raise(SIGABRT);return;}
 #define RESTART_AND_RETURN() {std::raise(SIGUSR1);return;}
 #ifndef ELOG
-#define ELOG(...) {extern boost::mutex flog;extern FILE* stdlog;flog.lock();uint32_t logtime=time(NULL);fprintf(stdout,__VA_ARGS__);fprintf(stdlog,"%08X ",logtime);fprintf(stdlog,__VA_ARGS__);flog.unlock();}
+#define ELOG(...) {extern boost::mutex flog;extern FILE* stdlog;flog.lock();uint32_t logtime=time(NULL);fprintf(stdout,__VA_ARGS__);fprintf(stdlog,"%08X ",logtime);fprintf(stdlog,__VA_ARGS__);fflush(stdout);flog.unlock();}
 #endif
 #ifndef NDEBUG
 //consider printing thread id
 #ifndef DLOG
-#define DLOG(...) {extern boost::mutex flog;extern FILE* stdlog;flog.lock();uint32_t logtime=time(NULL);fprintf(stdout,__VA_ARGS__);fprintf(stdlog,"%08X ",logtime);fprintf(stdlog,__VA_ARGS__);flog.unlock();}
+#define DLOG(...) {extern boost::mutex flog;extern FILE* stdlog;flog.lock();uint32_t logtime=time(NULL);fprintf(stdout,__VA_ARGS__);fprintf(stdlog,"%08X ",logtime);fprintf(stdlog,__VA_ARGS__);fflush(stdout);flog.unlock();}
 #endif
 #else
 #define DLOG(...)
