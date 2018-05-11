@@ -2743,9 +2743,10 @@ public:
       if(div!=(int64_t)0x8FFFFFFFFFFFFFFF){
         //DLOG("DIV: pay to %04X:%08X (%016lX)\n",msg->svid,utxs.auser,div);
         weight+=div;}
-      if(deduct+fee>usera->weight+(int64_t)local_dsu[usera->user].deposit){ //network accepts total withdrawal from users and bank owners (otherwise dividend fee may invalidate message included in the next block)
+      if(deduct+fee+(utxs.auser?0:BANK_MIN_UMASS)>usera->weight &&
+         deduct+fee+(utxs.auser?0:BANK_MIN_UMASS)>usera->weight+(int64_t)local_dsu[utxs.auser].deposit){ //network accepts total withdrawal from users
         ELOG("ERROR: too low balance txs:%016lX+fee:%016lX+min:%016lX>now:%016lX\n",
-          deduct,fee,(uint64_t)(utxs.auser?0:BANK_MIN_UMASS),usera->weight);
+          deduct,fee,(uint64_t)(utxs.auser?0:BANK_MIN_UMASS),usera->weight+local_dsu[utxs.auser].deposit);
         close(fd);
         return(false);}
       if(msg->svid!=opts_.svid){
@@ -3385,6 +3386,7 @@ public:
     //char filename[64];
     user_t u,ou;
     const int offset=(char*)&u+sizeof(user_t)-(char*)&u.rpath;
+    const int offset_stat=(char*)&u+sizeof(user_t)-(char*)&u.stat;
     assert((char*)&u.rpath<(char*)&u.weight);
     assert((char*)&u.rpath<(char*)&u.csum);
     const int shift=srvs_.now/BLOCKSEC;
@@ -3440,12 +3442,18 @@ public:
             if(u.weight<=TXS_DIV_FEE && (srvs_.now-USER_MIN_AGE>u.lpath)){ //alow deletion of account
               u.stat|=USER_STAT_DELETED;
               if(svid==opts_.svid && !do_sync && ofip!=NULL){
-                ofip_delete_user(user);}}
-            srvs_.user_csum(u,svid,user);
-            srvs_.xor4(srvs_.nodes[svid].hash,u.csum);
-            srvs_.nodes[svid].weight+=div;
-            lseek(fd,-offset,SEEK_CUR);
-            write(fd,&u.rpath,offset);}}} // write before undo ... not good for sync
+                ofip_delete_user(user);}
+              srvs_.user_csum(u,svid,user);
+              srvs_.xor4(srvs_.nodes[svid].hash,u.csum);
+              srvs_.nodes[svid].weight+=div;
+              lseek(fd,-offset_stat,SEEK_CUR);
+              write(fd,&u.stat,offset_stat);}
+            else{
+              srvs_.user_csum(u,svid,user);
+              srvs_.xor4(srvs_.nodes[svid].hash,u.csum);
+              srvs_.nodes[svid].weight+=div;
+              lseek(fd,-offset,SEEK_CUR);
+              write(fd,&u.rpath,offset);}}}} // write before undo ... not good for sync
       NEXTBANK:
       update.insert(svid);
       close(fd);
