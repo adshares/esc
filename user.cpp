@@ -725,6 +725,10 @@ void print_log(boost::property_tree::ptree& pt,settings& sts)
     logentry.put("id",tx_id);
     logtree.push_back(std::make_pair("",logentry));}
   close(fd);
+  if(logtree.size() == 0) {
+    boost::property_tree::ptree child;
+    logtree.push_back(std::make_pair("", child));
+  }
   pt.add_child("log",logtree);
 }
 
@@ -1730,7 +1734,13 @@ void talk(boost::asio::ip::tcp::resolver::iterator& endpoint_iterator,boost::asi
           pt.put("tx.id",tx_id);}}}
 
     END:socket.close();
-    boost::property_tree::write_json(std::cout,pt,sts.nice);}
+    std::stringstream ss;
+    boost::property_tree::write_json(ss,pt,sts.nice);
+    std::string s = ss.str();
+    ss.str(s);
+    // TODO: very UGLY
+    boost::algorithm::replace_all(s, sts.nice ? "\"log\": [\n        \"\"\n    ]" : "\"log\":[\"\"]", sts.nice ? "\"log\": []" : "\"log\":[]");
+    std::cout << s;}
   catch (std::exception& e){
     std::cerr << "Talk Exception: " << e.what() << "\n";
     // exit with error code to enable sane bash scripting
