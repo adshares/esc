@@ -1620,7 +1620,7 @@ void talk(boost::asio::ip::tcp::resolver::iterator& endpoint_iterator,boost::asi
           break;}
         l=utxs.size;
         boost::property_tree::ptree transaction;
-        sprintf(hash,"%04X%08X%04X",msg->svid,msg->msid,mpos);
+        sprintf(hash,"%04X:%08X:%04X",msg->svid,msg->msid,mpos);
         transaction.put("id",hash);
         transaction.put("type",utxs.ttype);
 
