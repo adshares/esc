@@ -752,15 +752,24 @@ Aborted
     if(!header.header_get()){
       DLOG("%04X FAILED to read header %08X for svid: %04X\n",svid,header.now,svid); //TODO, send error
       return;}
-    int len=8+SHA256_DIGEST_LENGTH+header.msg*(2+4+SHA256_DIGEST_LENGTH);
+    uint8_t *sigdata=NULL;
+    uint32_t nok=0;
+    header.get_signatures(header.now,sigdata,nok);
+    header.vok=(uint16_t)nok;
+    int len=12+header.vok*sizeof(svsi_t)+SHA256_DIGEST_LENGTH+header.msg*(2+4+SHA256_DIGEST_LENGTH);
     message_ptr put_msg(new message(len));
     put_msg->data[0]=MSGTYPE_MSP;
     memcpy(put_msg->data+1,&len,3); //bigendian
-    memcpy(put_msg->data+4,&header.now,4);
-    if(header.msgl_get((char*)(put_msg->data+8))!=(int)(SHA256_DIGEST_LENGTH+header.msg*(2+4+SHA256_DIGEST_LENGTH))){
-      DLOG("%04X FAILED to read msglist %08X\n",svid,header.now); //TODO, send error
+    if(sigdata!=NULL){
+      memcpy(put_msg->data+4,sigdata,8+header.vok*sizeof(svsi_t));
+      free(sigdata);}
+    else{
+      memcpy(put_msg->data+4,&header.now,4);
+      memcpy(put_msg->data+8,&nok,4);}
+    if(header.msgl_get((char*)(put_msg->data+12+header.vok*sizeof(svsi_t)))!=(int)(SHA256_DIGEST_LENGTH+header.msg*(2+4+SHA256_DIGEST_LENGTH))){
+      DLOG("%04X FAILED to read msglist %08X with %d signatures\n",svid,header.now,header.vok); //TODO, send error
       return;}
-    DLOG("%04X SENDING block msglist %08X\n",svid,header.now); //TODO, send error
+    DLOG("%04X SENDING block msglist %08X with %d signatures\n",svid,header.now,header.vok); //TODO, send error
     send_sync(put_msg);
   }
 
@@ -780,14 +789,17 @@ Aborted
         boost::bind(&peer::handle_read_header,shared_from_this(),boost::asio::placeholders::error));
       return;}
     header.header_get();
-    if(read_msg_->len!=(8+SHA256_DIGEST_LENGTH+header.msg*(2+4+SHA256_DIGEST_LENGTH))){
+    uint32_t nok;
+    memcpy(&nok,read_msg_->data+8,4);
+    header.vok=(uint16_t)nok;
+    if(read_msg_->len!=(12+header.vok*sizeof(svsi_t)+SHA256_DIGEST_LENGTH+header.msg*(2+4+SHA256_DIGEST_LENGTH))){
       ELOG("%04X ERROR got wrong msglist length\n",svid); // consider updating server
       read_msg_ = boost::make_shared<message>();
       boost::asio::async_read(socket_,
         boost::asio::buffer(read_msg_->data,message::header_length),
         boost::bind(&peer::handle_read_header,shared_from_this(),boost::asio::placeholders::error));
       return;}
-    if(memcmp(read_msg_->data+8,header.msghash,SHA256_DIGEST_LENGTH)){
+    if(memcmp(read_msg_->data+12+header.vok*sizeof(svsi_t),header.msghash,SHA256_DIGEST_LENGTH)){
       ELOG("%04X ERROR got wrong msglist msghash\n",svid); // consider updating server
       char hash[2*SHA256_DIGEST_LENGTH];
       ed25519_key2text(hash,read_msg_->data+8,SHA256_DIGEST_LENGTH);
@@ -799,7 +811,25 @@ Aborted
         boost::asio::buffer(read_msg_->data,message::header_length),
         boost::bind(&peer::handle_read_header,shared_from_this(),boost::asio::placeholders::error));
       return;}
-    server_.msgl_process(header,read_msg_->data+8);
+    if(header.vok*2<server_.last_srvs_.vtot && header.vok<opts_.mins){
+      ELOG("%04X ERROR not enough signatures (%d<(%d/2&%d))\n",svid,header.vok,server_.last_srvs_.vtot,opts_.mins);
+      read_msg_ = boost::make_shared<message>();
+      boost::asio::async_read(socket_,
+        boost::asio::buffer(read_msg_->data,message::header_length),
+        boost::bind(&peer::handle_read_header,shared_from_this(),boost::asio::placeholders::error));
+      return;}
+    header_t head;
+    header.vno=0;
+    header.header(head);
+    server_.last_srvs_.check_signatures(head,(svsi_t*)(read_msg_->data+12),true);
+    if(head.vok*2<server_.last_srvs_.vtot && head.vok<opts_.mins){
+      ELOG("%04X ERROR not enough signatures after validation (%d<(%d/2&%d))\n",svid,head.vok,server_.last_srvs_.vtot,opts_.mins);
+      read_msg_ = boost::make_shared<message>();
+      boost::asio::async_read(socket_,
+        boost::asio::buffer(read_msg_->data,message::header_length),
+        boost::bind(&peer::handle_read_header,shared_from_this(),boost::asio::placeholders::error));
+      return;}
+    server_.msgl_process(header,read_msg_->data+12+header.vok*sizeof(svsi_t));
     ////FIXME, process check and save in one function
     //std::map<uint64_t,message_ptr> map;
     //header.msgl_map((char*)(read_msg_->data+8),map,opts_.svid);
