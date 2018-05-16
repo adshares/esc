@@ -1252,6 +1252,9 @@ public:
           known_dbl(i)){ // ignore also suspected DBL servers
         DLOG("ELECTOR blk ignore %04X (DBL)\n",i);
         continue;}
+      if(!(last_srvs_.nodes[i].status & (SERVER_VIP | SERVER_UNO))) {
+        continue;
+      }
       DLOG("ELECTOR accepted:%04X (blk)\n",(i));
       svid_rset.insert(i);}
 

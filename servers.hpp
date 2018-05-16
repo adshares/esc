@@ -129,7 +129,7 @@ public:
     boost::optional<uint32_t> startTimeOpt = dataConfig.get_optional<uint32_t>("start_time");
 
     if(startTimeOpt.is_initialized() && startTimeOpt.get() % BLOCKSEC != 0) {
-      ELOG("Invalid genesis start time: %d\n", startTimeOpt.get());
+      ELOG("Invalid genesis start time: %d, must be divisible by %d\n", startTimeOpt.get(), BLOCKSEC);
       exit(-1);
     } else {
       ELOG("Genesis start time: %d\n", startTimeOpt.get());
@@ -138,7 +138,7 @@ public:
 
     uint32_t startTime = startTimeOpt.get();
 
-    uint64_t waitUntil = startTime + BLOCKSEC + (svid > 1 ? 5 : 0);
+    uint64_t waitUntil = startTime + BLOCKSEC;
 
     uint64_t clockNow = time(NULL);
     while(clockNow < waitUntil) {
@@ -166,6 +166,11 @@ public:
       std::string node_pkey = e.second.get<std::string>("public_key");
       ed25519_text2key(nn.pk,node_pkey.c_str(),32);
 
+      nn.mtim=nodes[0].mtim;
+      nn.users = users_count;
+      nodes.push_back(nn);
+
+
       for (auto f : e.second.get_child("accounts")) {
         user_t u;
         std::string user_pkey = f.second.get<std::string>("public_key");
@@ -176,16 +181,13 @@ public:
         parse_amount(u.weight, user_balance);
         init_user(u,node_num,users_count,u.weight,user_pk,nodes[0].mtim,node_num,users_count);
         put_user(u,node_num,users_count);
-        xor4(nn.hash, u.csum);
+        xor4(nodes[node_num].hash, u.csum);
         users_count++;
         users_weight += u.weight;
       }
 
-      nn.mtim=nodes[0].mtim;
-      nn.users = users_count;
-      nn.weight = users_weight;
-      init_node_hash(nn);
-      nodes.push_back(nn);
+      nodes[node_num].weight = users_weight;
+      init_node_hash(nodes[node_num]);
       node_num++;
     }
     update_vipstatus();
