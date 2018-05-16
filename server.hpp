@@ -171,7 +171,8 @@ public:
           message_map empty;
           srvs_.msg=0;
           srvs_.msgl_put(empty,NULL);
-          finish_block();}}
+          finish_block();
+          write_header();}}
       if(!do_fast){ //always sync on do_fast
         do_sync=0;}}
     else{
