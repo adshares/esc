@@ -44,6 +44,55 @@ public:
     mkdir("inx",0755); // create dir for bank message indeces
     mkdir("blk",0755); // create dir for blocks
     mkdir("vip",0755); // create dir for blocks
+
+    if(!opts_.genesis.empty()) {
+      struct stat sb;
+      if(stat("usr/0001.dat",&sb)>=0) {
+        ELOG("Database exists. Cannot load genesis\n");
+        exit(-1);
+      }
+
+      last_srvs_.create_genesis_block(opts_.genesis, opts_.svid);
+      RETURN_ON_SHUTDOWN();
+
+      if((int)last_srvs_.nodes.size()<=(int)opts_.svid){
+        ELOG("ERROR: svid too high %d<=%d\n",(int)last_srvs_.nodes.size(),(int)opts_.svid);
+        exit(-1);}
+
+      memcpy(pkey,last_srvs_.nodes[opts_.svid].pk,sizeof(hash_t));
+      //DLOG("INI:%016lX\n",*(uint64_t*)pkey);
+      if(!last_srvs_.find_key(pkey,skey)){
+        char pktext[2*32+1]; pktext[2*32]='\0';
+        ed25519_key2text(pktext,pkey,32);
+        ELOG("ERROR: failed to find secret key for key:\n%.64s\n",pktext);
+        exit(-1);}
+      last_srvs_.find_more_keys(pkey,nkeys);
+
+      bank_fee.resize(last_srvs_.nodes.size());
+      srvs_=last_srvs_;
+      memcpy(srvs_.oldhash,last_srvs_.nowhash,SHA256_DIGEST_LENGTH);
+
+      srvs_.now -= BLOCKSEC;
+      period_start=srvs_.nextblock();
+      ELOG("MAKE BLOCKCHAIN\n");
+      message_map empty;
+//      srvs_.now = last_srvs_.nodes[0].mtim;
+      srvs_.msg=0;
+      srvs_.msgl_put(empty,NULL);
+      finish_block();
+      write_header();
+//      header_t head;
+//      last_srvs_.header(head);
+//      hash_t emptyHash;
+//      message_ptr msg(new message(MSGTYPE_BLK,(uint8_t*)&head,sizeof(header_t),opts_.svid,head.now,skey,pkey,emptyHash));
+//      blk_insert(msg);
+//      uint32_t now=time(NULL);
+//      now-=now%BLOCKSEC;
+//      for(;srvs_.now<now;){
+//        srvs_.nextblock();
+//      }
+    }
+
     uint32_t lastpath=readmsid()-opts_.back*BLOCKSEC;//reads msid_ and path, FIXME, do not read msid, read only path
     //uint32_t lastpath=path;
     //remember start status
@@ -52,21 +101,15 @@ public:
     last_srvs_.get(lastpath);
 
     if(opts_.svid){
-      if(!last_srvs_.nodes.size()){
-        if(opts_.fast) {
-          // create empty servers so sync can start and download updated servers
-          last_srvs_.find_pkey(pkey); // get this node public key
-          last_srvs_.init_fast(opts_.svid, pkey);
-          ELOG("CREATING nodes for fast sync\n");
-        } else if(!opts_.init){
-          ELOG("ERROR reading servers (size:%d)\n",(int)last_srvs_.nodes.size());
-          exit(-1);}
-        ELOG("CREATING first node\n");}
-      else if((int)last_srvs_.nodes.size()<=(int)opts_.svid){
-        ELOG("ERROR reading servers svid too high(%d) (size:%d)\n",(int)opts_.svid,(int)last_srvs_.nodes.size());
-        exit(-1);}
-    }
-    else{
+       if(!last_srvs_.nodes.size()){
+         if(!opts_.init){
+           ELOG("ERROR reading servers (size:%d)\n",(int)last_srvs_.nodes.size());
+           exit(-1);}
+         ELOG("CREATING first node\n");}
+       else if((int)last_srvs_.nodes.size()<=(int)opts_.svid){
+         ELOG("ERROR reading servers (size:%d)\n",(int)last_srvs_.nodes.size());
+         exit(-1);}}
+     else{
       int fd=open_bank(0);
       if(fd>=0){
         close(fd);}}
@@ -107,7 +150,8 @@ public:
           message_map empty;
           srvs_.msg=0;
           srvs_.msgl_put(empty,NULL);
-          finish_block();}}
+          finish_block();
+          write_header();}}
       else{
         //path=0;
         lastpath=0;
@@ -115,11 +159,19 @@ public:
         start_msid=0;
         msid_=0;
         ELOG("START from a fresh database\n");
-        last_srvs_.init(now-BLOCKSEC, false, opts_.genesis);
+        last_srvs_.init(now-BLOCKSEC);
+        now=time(NULL);
+        now-=now%BLOCKSEC;
         srvs_=last_srvs_;
         memcpy(srvs_.oldhash,last_srvs_.nowhash,SHA256_DIGEST_LENGTH);
         period_start=srvs_.nextblock(); //changes now!
-        bank_fee.resize(last_srvs_.nodes.size());}
+        bank_fee.resize(last_srvs_.nodes.size());
+        ELOG("MAKE BLOCKCHAIN\n");
+        for(;srvs_.now<now;){
+          message_map empty;
+          srvs_.msg=0;
+          srvs_.msgl_put(empty,NULL);
+          finish_block();}}
       if(!do_fast){ //always sync on do_fast
         do_sync=0;}}
     else{
@@ -138,7 +190,7 @@ public:
         start_msid=0;
         msid_=0;
         ELOG("START with read only database\n");
-        last_srvs_.init(now-BLOCKSEC, true, "");
+        last_srvs_.init(now-BLOCKSEC);
         last_srvs_.update_vipstatus();
         bank_fee.resize(last_srvs_.nodes.size());}
       srvs_=last_srvs_;
@@ -153,9 +205,9 @@ public:
       bzero(skey,sizeof(hash_t));
       bzero(pkey,sizeof(hash_t));}
     else{
-      if(last_srvs_.nodes.size()<=(unsigned)opts_.svid){ 
+      if(last_srvs_.nodes.size()<=(unsigned)opts_.svid){
         ELOG("ERROR: reading servers (<=%d)\n",opts_.svid);
-        exit(-1);} 
+        exit(-1);}
       iamvip=(bool)(srvs_.nodes[opts_.svid].status & SERVER_VIP);
       //pkey=srvs_.nodes[opts_.svid].pk; // consider having a separate buffer for pkey
       memcpy(pkey,srvs_.nodes[opts_.svid].pk,sizeof(hash_t));
@@ -1194,28 +1246,14 @@ public:
     //FIXME, this should be moved to servers.hpp
     std::set<uint16_t> svid_rset;
     std::vector<uint16_t> svid_rank;
-    blk_.lock();
-    for(auto it=blk_msgs_.begin();it!=blk_msgs_.end();++it){
-      if(last_srvs_.nodes.size()<=it->second->svid){ //maybe not needed
+    for(uint16_t i=1;i<last_srvs_.nodes.size();i++){
+      if((last_srvs_.nodes[i].status & SERVER_DBL) ||
+          known_dbl(i)){ // ignore also suspected DBL servers
+        DLOG("ELECTOR blk ignore %04X (DBL)\n",i);
         continue;}
-      if((last_srvs_.nodes[it->second->svid].status & SERVER_DBL) ||
-          known_dbl(it->second->svid)){ // ignore also suspected DBL servers
-        DLOG("ELECTOR blk ignore %04X (DBL)\n",it->second->svid);
-        continue;}
-      if(it->second->msid!=srvs_.now-BLOCKSEC){
-        DLOG("ELECTOR blk ignore %04X (time %08X<>%08X)\n",it->second->svid,it->second->msid,srvs_.now-BLOCKSEC);
-        continue;}
-      if(!(it->second->status & MSGSTAT_VAL)){
-        DLOG("ELECTOR blk ignore %04X (invalid)\n",it->second->svid);
-        continue;}
-      DLOG("ELECTOR accepted:%04X (blk)\n",(it->second->svid));
-      svid_rset.insert(it->second->svid);}
-    blk_.unlock();
+      DLOG("ELECTOR accepted:%04X (blk)\n",(i));
+      svid_rset.insert(i);}
 
-    if(!svid_rset.size() && last_srvs_.now == last_srvs_.nodes[0].mtim){
-      // if this is genesis block then always node1 sends candidate
-      svid_rset.insert(last_srvs_.get_vipuno());
-    }
     if(!svid_rset.size()){
       ELOG("ERROR, no valid server for this block :-(\n");}
     else{

@@ -102,7 +102,7 @@ public:
 		vtot(0xffff)
 	{}
 
-  void create_genesis_block(const std::string genesis_file, uint32_t now)
+  void create_genesis_block(const std::string genesis_file, uint16_t svid)
   {
     assert(nodes.size() == 0);
     ELOG("INIT: using genesis file %s\n",genesis_file.c_str());
@@ -124,12 +124,38 @@ public:
     ed25519_key2text(hash_text, genesis_hash, SHA256_DIGEST_LENGTH);
     ELOG("genesis hash: %.*s\n", 2*SHA256_DIGEST_LENGTH, hash_text);
 
-    boost::property_tree::ptree dataNodes = data.get_child("nodes");
+    boost::property_tree::ptree dataConfig = data.get_child("config");
+
+    boost::optional<uint32_t> startTimeOpt = dataConfig.get_optional<uint32_t>("start_time");
+
+    if(startTimeOpt.is_initialized() && startTimeOpt.get() % BLOCKSEC != 0) {
+      ELOG("Invalid genesis start time: %d\n", startTimeOpt.get());
+      exit(-1);
+    } else {
+      ELOG("Genesis start time: %d\n", startTimeOpt.get());
+
+    }
+
+    uint32_t startTime = startTimeOpt.get();
+
+    uint64_t waitUntil = startTime + BLOCKSEC + (svid > 1 ? 5 : 0);
+
+    uint64_t clockNow = time(NULL);
+    while(clockNow < waitUntil) {
+      boost::this_thread::sleep(boost::posix_time::seconds(1));
+      ELOG("Awaiting for genesis block time: %lu s\n",  waitUntil-clockNow);
+      clockNow = time(NULL);
+      RETURN_ON_SHUTDOWN();
+    }
 
     node nn;
-    nn.mtim = now;
+    now = nn.mtim = startTime;
+
     memcpy(nn.msha, genesis_hash, SHA256_DIGEST_LENGTH);
     nodes.push_back(nn);
+
+    boost::property_tree::ptree dataNodes = data.get_child("nodes");
+
 
     uint16_t node_num = 1;
     for (auto e : dataNodes) {
@@ -148,14 +174,14 @@ public:
 
         std::string user_balance = f.second.get<std::string>("balance");
         parse_amount(u.weight, user_balance);
-        init_user(u,node_num,users_count,u.weight,user_pk,now,node_num,users_count);
+        init_user(u,node_num,users_count,u.weight,user_pk,nodes[0].mtim,node_num,users_count);
         put_user(u,node_num,users_count);
         xor4(nn.hash, u.csum);
         users_count++;
         users_weight += u.weight;
       }
 
-      nn.mtim=now;
+      nn.mtim=nodes[0].mtim;
       nn.users = users_count;
       nn.weight = users_weight;
       init_node_hash(nn);
@@ -163,83 +189,61 @@ public:
       node_num++;
     }
     update_vipstatus();
-//    for (auto it = dataNodes.begin(); it != dataNodes.end(); it++)
-//      {
-//          std::cout << it->first << ": " << it->second.get<string>("amount") << std::endl;
-//      }
-
-//    exit(-1);
   }
 
-  void init_fast(uint16_t node_count, hash_t pk)
-  {
-    std::cout << "init_fast" << node_count << std::endl;
-    assert(nodes.size() == 0 || nodes[0].status == SERVER_FST);
-    node nn;
-    nn.status = SERVER_FST;
-    memcpy(nn.pk,pk,32);
-    for(int i=nodes.size();i<=node_count;i++) {
-      nodes.push_back(nn);
-    }
-  }
-
-	void init(uint32_t newnow, bool readonly, const std::string genesis_file)
+	void init(uint32_t newnow)
 	{	uint16_t num=0;
 		uint64_t sum=0;
-		now=newnow;
-		blockdir();
+
 		if(!nodes.size()){
-		  if(genesis_file.empty()) {
-		    // create test network
-        mkdir("key",0700);
-        int fd=open("key/key.txt",O_WRONLY|O_CREAT,0600);
-        close(fd);
-        FILE *fp=fopen("key/key.txt","a");
-        // ed25519/key "author name"
-        fprintf(fp,"14B183205CA661F589AD83809952A692DFA48F5D490B10FD120DA7BF10F2F4A0\n#PK: 7D21F4EE7DE72EEDDC2EBFFEC5E7F33F140A975A629EE312075BB04610A9CFFF\n#SG: C42B0C170A78C9985319B7A2E17D44E4BD88845FCE21C3FCC00A496AAAB6E8F84AD54E06F0D5FDDE98D370462C4EFAA52A38C8BCB513B7DF597315835244D10A\n");
-        fclose(fp);
-        hash_t hash;
-        ed25519_text2key(hash,"7D21F4EE7DE72EEDDC2EBFFEC5E7F33F140A975A629EE312075BB04610A9CFFF",32);
-        node nn;
-        memcpy(nn.pk,hash,32);
-        nodes.push_back(nn);
-        nodes.push_back(nn);
-        nodes.push_back(nn);
+      now=newnow;
+      blockdir();
+      // create test network
+      mkdir("key",0700);
+      int fd=open("key/key.txt",O_WRONLY|O_CREAT,0600);
+      close(fd);
+      FILE *fp=fopen("key/key.txt","a");
+      // ed25519/key "author name"
+      fprintf(fp,"14B183205CA661F589AD83809952A692DFA48F5D490B10FD120DA7BF10F2F4A0\n#PK: 7D21F4EE7DE72EEDDC2EBFFEC5E7F33F140A975A629EE312075BB04610A9CFFF\n#SG: C42B0C170A78C9985319B7A2E17D44E4BD88845FCE21C3FCC00A496AAAB6E8F84AD54E06F0D5FDDE98D370462C4EFAA52A38C8BCB513B7DF597315835244D10A\n");
+      fclose(fp);
+      hash_t hash;
+      ed25519_text2key(hash,"7D21F4EE7DE72EEDDC2EBFFEC5E7F33F140A975A629EE312075BB04610A9CFFF",32);
+      node nn;
+      memcpy(nn.pk,hash,32);
+      nodes.push_back(nn);
+      nodes.push_back(nn);
 
-        int64_t stw=TOTALMASS/(nodes.size()-1); // removed initial tax of 1%
-        for(auto it=nodes.begin();it<nodes.end();it++,num++){
+      int64_t stw=TOTALMASS/(nodes.size()-1); // removed initial tax of 1%
+      for(auto it=nodes.begin();it<nodes.end();it++,num++){
 
-          if(!num){
-            RAND_bytes(it->msha, sizeof(it->msha));
-          }
+        if(!num){
+          RAND_bytes(it->msha, sizeof(it->msha));
+        }
 //          memset(it->msha,0xff,SHA256_DIGEST_LENGTH); //TODO, start servers this way too
 //          memcpy(it->msha,&num,2); // always start with a unique hash
 //          memcpy(it->msha+2,&now,4); // network id
-          it->msid=0;
-          it->mtim=now; // blockchain start time in nodes[0] == network id
-          it->status=0;
-          if(num){
-            //if(num<=VIP_MAX){
-            if(num==1){
-              it->status|=SERVER_VIP;}
-            it->users=1;
-            // create the first user
-            user_t u;
-            init_user(u,num,0,stw,it->pk,now,num,0);
-            put_user(u,num,0);
-            //update_nodehash(num);
-            memcpy(it->hash,u.csum,SHA256_DIGEST_LENGTH);
-            it->weight=u.weight;
-            init_node_hash(*it);
-          }
-          else{
-            bzero(it->hash,SHA256_DIGEST_LENGTH);
-            bzero(it->pk,SHA256_DIGEST_LENGTH);
-            it->users=0;
-            it->weight=0;}}
-		  } else {
-		    create_genesis_block(genesis_file, now);
-		  }
+        it->msid=0;
+        it->mtim=now; // blockchain start time in nodes[0] == network id
+        it->status=0;
+        if(num){
+          //if(num<=VIP_MAX){
+          if(num==1){
+            it->status|=SERVER_VIP;}
+          it->users=1;
+          // create the first user
+          user_t u;
+          init_user(u,num,0,stw,it->pk,now,num,0);
+          put_user(u,num,0);
+          //update_nodehash(num);
+          memcpy(it->hash,u.csum,SHA256_DIGEST_LENGTH);
+          it->weight=u.weight;
+          init_node_hash(*it);
+        }
+        else{
+          bzero(it->hash,SHA256_DIGEST_LENGTH);
+          bzero(it->pk,SHA256_DIGEST_LENGTH);
+          it->users=0;
+          it->weight=0;}}
 		}
 
 		num = 0;
@@ -258,7 +262,7 @@ public:
 		write_start();
 		now=0;
 		put();
-		now=newnow;
+		now=nodes[0].mtim;
 		//return(num<VIP_MAX?num:VIP_MAX);
 	}
 
@@ -414,25 +418,6 @@ public:
 				return(true);}}
 		fclose(fp);
 		return(false);
-	}
-
-	bool find_pkey(uint8_t* pk)
-	{
-	  FILE* fp=fopen("key/key.txt","r");
-    char line[255];
-    if(fp==NULL){
-      return(false);}
-    while(fgets(line,255,fp)>0){
-      if(line[0]=='#' || strlen(line)<64){
-        continue;}
-      hash_t skey;
-      ed25519_text2key(skey,line,32); // do not send last hash
-      ed25519_publickey(skey,pk);
-      fclose(fp);
-      return(true);
-    }
-    fclose(fp);
-    return(false);
 	}
 
 	void find_more_keys(uint8_t* pkey,std::map<uint16_t,nodekey_t> &nkeys)
@@ -780,16 +765,6 @@ public:
 				DLOG("HASHTREE failed (path len:%d) to get nowhash\n",(int)hashes.size());
 				return(false);}
 		return(true);
-	}
-
-	uint16_t get_vipuno()
-	{
-	  for(uint16_t i=1;i<nodes.size();i++){
-	        if(nodes[i].status & SERVER_UNO){
-	          return i;
-	        }
-	  }
-	  return 0;
 	}
 
 	void update_vipstatus()
@@ -1234,8 +1209,19 @@ public:
 		//int fd=open(filename,O_WRONLY|O_CREAT|O_APPEND,0644);
 		int fd=open(filename,O_RDWR|O_CREAT,0644);
 		if(fd<0){
-			DLOG("ERROR, failed to save signatures in %s\n",filename);
-			return;}
+      char pathname[64];
+      sprintf(pathname,"blk/%03X",path>>20);
+      mkdir(pathname,0755);
+      sprintf(pathname,"blk/%03X/%05X",path>>20,path&0xFFFFF);
+      mkdir(pathname,0755);
+      sprintf(pathname,"blk/%03X/%05X/und",path>>20,path&0xFFFFF);
+      mkdir(pathname,0755);
+      sprintf(pathname,"blk/%03X/%05X/log",path>>20,path&0xFFFFF);
+      mkdir(pathname,0755);
+      fd=open(filename,O_RDWR|O_CREAT,0644);
+      if(fd<0){
+        DLOG("ERROR, failed to save signatures in %s\n",filename);
+        return;}}
 		int num=0;
 		while(read(fd,&old,sizeof(svsi_t))==sizeof(svsi_t)){
 			num++;
@@ -1349,25 +1335,23 @@ public:
 			uint8_t* data=(uint8_t*)&svsi[i];
 			uint16_t svid;
 			memcpy(&svid,data,2);
-			if(!(nodes[0].status & SERVER_FST)){
-        if(svid>=nodes.size()){
-          DLOG("ERROR, bad server %04X in signatures\n",svid);
-          continue;}
-        if(!(nodes[svid].status & SERVER_VIP)){
-          DLOG("WARNING, signature from non VIP server %04X ignored\n",svid);
-          continue;}
-        int error=ed25519_sign_open((const unsigned char*)&head,sizeof(header_t)-4,nodes[svid].pk,data+2);
-        if(error){
-          char hash[4*SHA256_DIGEST_LENGTH];
-          ed25519_key2text(hash,data+2,2*SHA256_DIGEST_LENGTH);
-          ELOG("BLOCK SIGNATURE failed %.*s (%d)\n",4*SHA256_DIGEST_LENGTH,hash,svid);
-          header_print(head);
-          continue;}
-        else if(save){
-          save_signature(head.now,svid,data+2,true);}
-        if(j!=i){
-          memcpy(svsi+j,svsi+i,sizeof(svsi_t));}
-			}
+      if(svid>=nodes.size()){
+        DLOG("ERROR, bad server %04X in signatures\n",svid);
+        continue;}
+      if(!(nodes[svid].status & SERVER_VIP)){
+        DLOG("WARNING, signature from non VIP server %04X ignored\n",svid);
+        continue;}
+      int error=ed25519_sign_open((const unsigned char*)&head,sizeof(header_t)-4,nodes[svid].pk,data+2);
+      if(error){
+        char hash[4*SHA256_DIGEST_LENGTH];
+        ed25519_key2text(hash,data+2,2*SHA256_DIGEST_LENGTH);
+        ELOG("BLOCK SIGNATURE failed %.*s (%d)\n",4*SHA256_DIGEST_LENGTH,hash,svid);
+        header_print(head);
+        continue;}
+      else if(save){
+        save_signature(head.now,svid,data+2,true);}
+      if(j!=i){
+        memcpy(svsi+j,svsi+i,sizeof(svsi_t));}
 			j++;}
 		head.vno+=head.vok;
 		head.vok=j;

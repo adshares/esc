@@ -79,10 +79,14 @@ public:
 				if(vm["fast"].as<bool>()) {
 				  if(!vm.count("viphash") || vm["viphash"].as<std::string>().length() == 0) {
 				    std::cerr << "Must provide --viphash for fast sync" << std::endl;
-				    throw new std::exception();
+				    throw std::exception();
 				  } else if(vm["viphash"].as<std::string>().length() != SHA256_DIGEST_LENGTH*2) {
 				    std::cerr << "Invalid --viphash length" << std::endl;
-				    throw new std::exception();
+				    throw std::exception();
+				  }
+				  if (vm.count("svid") && vm["svid"].as<int>() != 0){
+				    std::cerr << "--fast sync only available for readonly node (--svid=0)" << std::endl;
+				    throw std::exception();
 				  }
         }
 			}

@@ -1211,12 +1211,14 @@ Aborted
       free(peer_svsi);
       return(0);}
     DLOG("%04X BLOCK signatures recieved ok:%d no:%d\n",svid,peer_hs.head.vok,peer_hs.head.vno);
-    server_.last_srvs_.check_signatures(peer_hs.head,peer_svsi,true);//TODO, check if server_.last_srvs_ has public keys
-    //if(peer_hs.head.vok<server_.vip_max/2 && (!opts_.mins || peer_hs.head.vok<opts_.mins)){
-    if(peer_hs.head.vok*2<server_.last_srvs_.vtot && peer_hs.head.vok<opts_.mins){
-      ELOG("%04X READ not enough signatures after validaiton\n",svid);
-      free(peer_svsi);
-      return(0);}
+    if(!(do_sync && opts_.fast && opts_.svid == 0)) {
+      server_.last_srvs_.check_signatures(peer_hs.head,peer_svsi,true);//TODO, check if server_.last_srvs_ has public keys
+      //if(peer_hs.head.vok<server_.vip_max/2 && (!opts_.mins || peer_hs.head.vok<opts_.mins)){
+      if(peer_hs.head.vok*2<server_.last_srvs_.vtot && peer_hs.head.vok<opts_.mins){
+        ELOG("%04X READ not enough signatures after validaiton\n",svid);
+        free(peer_svsi);
+        return(0);}
+    }
     //now decide if You want to sync to last stage first ; or load missing blocks and messages first, You can decide based on size of databases and time to next block
     //the decision should be in fact made at the beginning by the server
     server_.add_electors(peer_hs.head,peer_svsi);
@@ -1253,12 +1255,9 @@ Aborted
 
     if(opts_.mins || svid!=BANK_MAX || !server_.do_sync){
       if(!read_msg_->svid || read_msg_->svid>=srvs_.nodes.size()){ // READONLY ok
-        if(srvs_.nodes[0].status & SERVER_FST) {
-          //srvs_.init_fast(read_msg_->svid, srvs_.nodes[opts_.svid].pk);
-        } else {
         ELOG("%04X ERROR reading head (bad svid %04X)\n",svid,read_msg_->svid);
         leave();
-        return;}}
+        return;}
       uint8_t* msha=srvs_.nodes[read_msg_->svid].msha;
       if(read_msg_->data[0]==MSGTYPE_MSG){
         if(server_.last_srvs_.nodes[read_msg_->svid].msid>=read_msg_->msid){
@@ -1294,7 +1293,7 @@ Aborted
           return;}}
       else if(read_msg_->data[0]==MSGTYPE_INI || read_msg_->data[0]==MSGTYPE_CND){
         read_msg_->hash_signature();}
-      if(!(srvs_.nodes[0].status & SERVER_FST) && read_msg_->check_signature(srvs_.nodes[read_msg_->svid].pk,opts_.svid,msha)){
+      if(!(do_sync && opts_.fast && opts_.svid == 0) && read_msg_->check_signature(srvs_.nodes[read_msg_->svid].pk,opts_.svid,msha)){
         //FIXME, this can be also a double spend, do not loose it
         ELOG("%04X BAD signature %04X:%08X (last msid:%08X) %016lX!!!\n\n",svid,read_msg_->svid,read_msg_->msid,
           srvs_.nodes[read_msg_->svid].msid,read_msg_->hash.num);
