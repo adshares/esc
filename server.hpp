@@ -4125,6 +4125,7 @@ public:
         //svid_.unlock();
         //TODO, maybe last_svid_msgs not needed (this can be read from txs_msgs_[_VAL] when creatin block_all_msgs)
         RETURN_ON_SHUTDOWN();
+        prepare_poll(); // sets do_vote, clears candidates and electors; do before changing LAST_block !
         LAST_block_msgs();
         message_shash(cand.hash,LAST_block_all_msgs);
         { message_ptr put_msg(new message(1+SHA256_DIGEST_LENGTH));
@@ -4135,7 +4136,6 @@ public:
           ELOG("LAST HASH put %.*s\n",(int)(2*SHA256_DIGEST_LENGTH),hash);
           deliver(put_msg); // sets BLOCK_MODE for peers
         }
-        prepare_poll(); // sets do_vote, clears candidates and electors
         do_block=1; //must be before save_candidate
         std::map<uint64_t,hash_s> msg_add; // could be also svid_msha
         std::set<uint64_t> msg_del; // could be also svid_msha
