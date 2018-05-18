@@ -14,8 +14,14 @@ import java.util.List;
 public class UserDataProvider {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
-
-    private static final String GENESIS_FILE = "genesis.json";
+    /**
+     * System property directing to custom genesis file
+     */
+    private static final String SYSTEM_PROP_GENESIS_FILE = "genesis.file";
+    /**
+     * Default name of genesis file is genesis.json and location is main esc directory
+     */
+    private static final String DEFAULT_GENESIS_FILE = "genesis.json";
     private static final int STARTING_PORT_INT = 9001;
     private static final String HOST = "esc.dock";
 
@@ -38,9 +44,10 @@ public class UserDataProvider {
      * Reads accounts data from genesis file.
      */
     private void init() {
+        String genesisFile = System.getProperty(SYSTEM_PROP_GENESIS_FILE, DEFAULT_GENESIS_FILE);
         BufferedReader bufferedReader = null;
         try {
-            bufferedReader = new BufferedReader(new FileReader(GENESIS_FILE));
+            bufferedReader = new BufferedReader(new FileReader(genesisFile));
         } catch (FileNotFoundException e) {
             log.error(e.toString());
         }

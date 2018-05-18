@@ -105,6 +105,8 @@ public class TransferStepdefs {
         BigDecimal minAccountBalance = sender.getMinAllowedBalance();
         // update balances, if transfer is possible
         if (tmpSenderExpBalance.compareTo(minAccountBalance) >= 0) {
+            Assert.assertTrue("transfer was not accepted by node", isTransferAcceptedByNode(jsonResp));
+
             // receivers
             TransferData txDataIn = new TransferData();
             txDataIn.setAmount(amount);
@@ -126,6 +128,9 @@ public class TransferStepdefs {
             log.info("\tbalance: {}", senderBalance);
             log.info("\t amount: {}", txAmount);
             log.info("\t    fee: {}", fee);
+
+            Assert.assertFalse("transfer was accepted by node", isTransferAcceptedByNode(jsonResp));
+
             for (TransferUser txReceiver : txReceivers) {
                 txReceiver.setExpBalance(txReceiver.getStartBalance());
             }
@@ -438,7 +443,7 @@ public class TransferStepdefs {
      * Sums log operations that match filter
      *
      * @param jsonResp json returned from get_log function
-     * @param filter  LogFilter, null for all operations
+     * @param filter   LogFilter, null for all operations
      * @return balance computed from filtered operations in user log array
      */
     private BigDecimal getBalanceFromLogArray(JsonObject jsonResp, LogFilter filter) {
@@ -577,5 +582,19 @@ public class TransferStepdefs {
 
         Assert.assertEquals("Invalid transfer amount.", amount, transferData.getAmount());
         Assert.assertEquals("Invalid transfer fee.", fee, transferData.getFee());
+    }
+
+    /**
+     * Checks, if node accepted transfer.
+     *
+     * @param jsonResp response from transfer function (eg. send_one, send_many) as String
+     * @return true, if transfer was accepted by node, false otherwise
+     */
+    private boolean isTransferAcceptedByNode(String jsonResp) {
+        JsonParser parser = new JsonParser();
+        JsonObject o = parser.parse(jsonResp).getAsJsonObject();
+        o = o.getAsJsonObject("tx");
+
+        return o.has("id");
     }
 }
