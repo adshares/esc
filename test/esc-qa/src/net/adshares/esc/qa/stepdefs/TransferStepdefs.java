@@ -9,10 +9,7 @@ import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
 import net.adshares.esc.qa.data.UserData;
 import net.adshares.esc.qa.data.UserDataProvider;
-import net.adshares.esc.qa.util.EscConst;
-import net.adshares.esc.qa.util.FunctionCaller;
-import net.adshares.esc.qa.util.LogFilter;
-import net.adshares.esc.qa.util.Utils;
+import net.adshares.esc.qa.util.*;
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,7 +102,7 @@ public class TransferStepdefs {
         BigDecimal minAccountBalance = sender.getMinAllowedBalance();
         // update balances, if transfer is possible
         if (tmpSenderExpBalance.compareTo(minAccountBalance) >= 0) {
-            Assert.assertTrue("transfer was not accepted by node", isTransferAcceptedByNode(jsonResp));
+            Assert.assertTrue("transfer was not accepted by node", EscUtils.isTransactionAcceptedByNode(jsonResp));
 
             // receivers
             TransferData txDataIn = new TransferData();
@@ -129,7 +126,7 @@ public class TransferStepdefs {
             log.info("\t amount: {}", txAmount);
             log.info("\t    fee: {}", fee);
 
-            Assert.assertFalse("transfer was accepted by node", isTransferAcceptedByNode(jsonResp));
+            Assert.assertFalse("transfer was accepted by node", EscUtils.isTransactionAcceptedByNode(jsonResp));
 
             for (TransferUser txReceiver : txReceivers) {
                 txReceiver.setExpBalance(txReceiver.getStartBalance());
@@ -185,10 +182,13 @@ public class TransferStepdefs {
         String resp = fc.getLog(receiverData);
         JsonParser parser = new JsonParser();
         JsonObject jsonResp = parser.parse(resp).getAsJsonObject();
-        BigDecimal balanceRead = jsonResp.getAsJsonObject("account").get("balance").getAsBigDecimal();
-        BigDecimal balanceFromLogArray = getBalanceFromLogArray(jsonResp);
+
+        LogChecker lc = new LogChecker(resp);
+        BigDecimal balanceRead = lc.getBalanceFromAccountObject();
+        BigDecimal balanceFromLogArray = lc.getBalanceFromLogArray();
         log.info("balanceFromLog      {} : receiver1", balanceRead);
         log.info("balanceFromLogArray {} : receiver1", balanceFromLogArray);
+
         return getLastEventTime(jsonResp);
     }
 
@@ -219,6 +219,7 @@ public class TransferStepdefs {
             receiverIds.add(i);
         }
 
+        LogChecker logChecker = new LogChecker();
         // max block delay for account balance update after successful remote transfer
         int MAX_BLOCK_DELAY = 50;
         int blockDelay;
@@ -246,13 +247,13 @@ public class TransferStepdefs {
                     UserData receiverData = txReceiver.getUserData();
                     long ts = receiverEventTs.get(i);
                     resp = fc.getLog(receiverData, ts);
-                    jsonResp = parser.parse(resp).getAsJsonObject();
+                    logChecker.setResp(resp);
 
                     LogFilter lf;
                     lf = new LogFilter(true);
                     lf.addFilter("type", "send_one|send_many");
                     lf.addFilter("amount", txAmountIn.toPlainString());
-                    balanceFromLogArray = getBalanceFromLogArray(jsonResp, lf);
+                    balanceFromLogArray = logChecker.getBalanceFromLogArray(lf);
 
                     if (txAmountIn.compareTo(balanceFromLogArray) == 0) {
                         // transfer received
@@ -279,8 +280,8 @@ public class TransferStepdefs {
             UserData receiverData = txReceiver.getUserData();
             long ts = receiverEventTs.get(i);
             resp = fc.getLog(receiverData, ts);
-            jsonResp = parser.parse(resp).getAsJsonObject();
-            balanceRead = jsonResp.getAsJsonObject("account").get("balance").getAsBigDecimal();
+            logChecker.setResp(resp);
+            balanceRead = logChecker.getBalanceFromAccountObject();
 
             TransferData transferData = txReceiver.getTransferData();
             if (transferData != null) {
@@ -289,9 +290,9 @@ public class TransferStepdefs {
                 lf = new LogFilter(false);
                 lf.addFilter("type", "send_one|send_many");
                 lf.addFilter("amount", txAmountIn.toPlainString());
-                balanceFromLogArray = getBalanceFromLogArray(jsonResp, lf);
+                balanceFromLogArray = logChecker.getBalanceFromLogArray(lf);
             } else {
-                balanceFromLogArray = getBalanceFromLogArray(jsonResp);
+                balanceFromLogArray = logChecker.getBalanceFromLogArray();
             }
 
             BigDecimal receiverExpBalance = txReceiver.getExpBalance();
@@ -305,9 +306,9 @@ public class TransferStepdefs {
 
 
         resp = fc.getLog(sender, senderLastEventTs);
-        jsonResp = parser.parse(resp).getAsJsonObject();
-        balanceRead = jsonResp.getAsJsonObject("account").get("balance").getAsBigDecimal();
-        balanceFromLogArray = getBalanceFromLogArray(jsonResp);
+        logChecker.setResp(resp);
+        balanceRead = logChecker.getBalanceFromAccountObject();
+        balanceFromLogArray = logChecker.getBalanceFromLogArray();
         BigDecimal senderExpBalance = txSender.getExpBalance();
         log.info("balanceFromLog      {} : sender", balanceRead);
         log.info("balanceFromLogArray {} : sender", balanceFromLogArray);
@@ -418,108 +419,14 @@ public class TransferStepdefs {
      * @param userLog get_log response
      */
     private void checkUserLog(String userLog) {
-        JsonParser parser = new JsonParser();
-        JsonObject jsonResp = parser.parse(userLog).getAsJsonObject();
+        LogChecker lc = new LogChecker(userLog);
 
         // balance read from response
-        BigDecimal balanceRead = new BigDecimal(jsonResp.getAsJsonObject("account").get("balance").getAsString());
+        BigDecimal balanceRead = lc.getBalanceFromAccountObject();
         // balance computed from all operations in user log
-        BigDecimal balance = getBalanceFromLogArray(jsonResp);
+        BigDecimal balance = lc.getBalanceFromLogArray();
 
         Assert.assertEquals(balance, balanceRead);
-    }
-
-    /**
-     * Sums all operations in log
-     *
-     * @param jsonResp json returned from get_log function
-     * @return balance computed from operations in user log array
-     */
-    private BigDecimal getBalanceFromLogArray(JsonObject jsonResp) {
-        return getBalanceFromLogArray(jsonResp, null);
-    }
-
-    /**
-     * Sums log operations that match filter
-     *
-     * @param jsonResp json returned from get_log function
-     * @param filter   LogFilter, null for all operations
-     * @return balance computed from filtered operations in user log array
-     */
-    private BigDecimal getBalanceFromLogArray(JsonObject jsonResp, LogFilter filter) {
-        BigDecimal balance = BigDecimal.ZERO;
-
-        // node
-        int node = jsonResp.getAsJsonObject("account").get("node").getAsInt();
-        log.info("NODE {}", node);
-
-        JsonElement jsonElementLog = jsonResp.get("log");
-        if (jsonElementLog.isJsonArray()) {
-            JsonArray jsonArrayLog = jsonElementLog.getAsJsonArray();
-            for (JsonElement je : jsonArrayLog) {
-                JsonObject logEntry = je.getAsJsonObject();
-                // text log entry type
-                String type = logEntry.get("type").getAsString();
-                // numeric log entry type
-                String typeNo = logEntry.get("type_no").getAsString();
-
-
-                // checking entry with filter
-                if (filter != null) {
-                    if (!filter.processEntry(logEntry)) {
-                        log.info("skipping: {}", type);
-                        continue;
-                    }
-                }
-
-
-                BigDecimal amount;
-                if ("create_account".equals(type) || "change_account_key".equals(type)
-                        || "send_one".equals(type) || "send_many".equals(type)
-                        || ("create_node".equals(type) && "7".equals(typeNo))) {// create_node request
-                    amount = new BigDecimal(logEntry.get("amount").getAsString());
-                    if ("out".equals(logEntry.get("inout").getAsString())) {
-                        BigDecimal senderFee = new BigDecimal(logEntry.get("sender_fee").getAsString());
-                        amount = amount.subtract(senderFee);
-                    }
-
-                } else if ("dividend".equals(type)) {
-                    amount = new BigDecimal(logEntry.get("dividend").getAsString());
-
-                } else if ("node_started".equals(type)) {// type_no == 32768
-                    amount = new BigDecimal(logEntry.getAsJsonObject("account").get("balance").getAsString());
-                    if (logEntry.has("dividend")) {
-                        BigDecimal dividend = new BigDecimal(logEntry.get("dividend").getAsString());
-                        amount = amount.add(dividend);
-                    }
-
-                } else if ("bank_profit".equals(type)) {// type_no == 32785
-                    if (logEntry.has("node") && logEntry.get("node").getAsInt() != node) {
-                        log.info("bank profit for different node");
-                        amount = BigDecimal.ZERO;
-                    } else {
-                        amount = new BigDecimal(logEntry.get("profit").getAsString());
-                        if (logEntry.has("fee")) {
-                            BigDecimal fee = new BigDecimal(logEntry.get("fee").getAsString());
-                            amount = amount.subtract(fee);
-                        }
-                    }
-
-                } else if ("create_node".equals(type) && "32775".equals(typeNo)) {
-                    // create_node request accepted
-                    amount = BigDecimal.ZERO;
-
-                } else {
-                    log.warn("Unknown type: " + type + ", no " + typeNo);
-                    amount = BigDecimal.ZERO;
-
-                }
-                balance = balance.add(amount);
-                log.info(String.format("%1$20s:%2$s", type, amount.toString()));
-            }
-        }
-
-        return balance;
     }
 
     /**
@@ -584,17 +491,4 @@ public class TransferStepdefs {
         Assert.assertEquals("Invalid transfer fee.", fee, transferData.getFee());
     }
 
-    /**
-     * Checks, if node accepted transfer.
-     *
-     * @param jsonResp response from transfer function (eg. send_one, send_many) as String
-     * @return true, if transfer was accepted by node, false otherwise
-     */
-    private boolean isTransferAcceptedByNode(String jsonResp) {
-        JsonParser parser = new JsonParser();
-        JsonObject o = parser.parse(jsonResp).getAsJsonObject();
-        o = o.getAsJsonObject("tx");
-
-        return o.has("id");
-    }
 }
