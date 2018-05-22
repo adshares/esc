@@ -1,9 +1,6 @@
 package net.adshares.esc.qa.util;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
+import com.google.gson.*;
 import net.adshares.esc.qa.data.UserData;
 import net.adshares.esc.qa.stepdefs.TransferUser;
 import org.slf4j.Logger;
@@ -16,6 +13,9 @@ import java.math.BigDecimal;
 import java.util.Map;
 
 public class FunctionCaller {
+
+    private static final String ESC_BINARY = "docker exec -i -w /tmp/esc adshares_esc_1 esc";
+    private static final String ESC_BINARY_OPTS = " -n0 ";
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -32,19 +32,20 @@ public class FunctionCaller {
     }
 
     /**
-     * Calls get_me function for specific user
+     * Calls get_me function for specific user.
      *
      * @param userData user data
      * @return response: json when request was correct, empty otherwise
      */
-    public String getMe(UserData userData) {
+    private String getMe(UserData userData) {
         log.info("getMe");
-        String command = "echo '{\"run\":\"get_me\"}' | ./esc -n0 ".concat(userData.getDataAsEscParams());
+        String command = ("echo '{\"run\":\"get_me\"}' | ")
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(userData.getDataAsEscParams());
         return callFunction(command);
     }
 
     /**
-     * Calls get_log function for specific user
+     * Calls get_log function for specific user.
      *
      * @param userData user data
      * @return response: json when request was correct, empty otherwise
@@ -54,7 +55,7 @@ public class FunctionCaller {
     }
 
     /**
-     * Calls get_log function for specific user
+     * Calls get_log function for specific user.
      *
      * @param userData      user data
      * @param fromTimeStamp log start time in Unix Epoch seconds
@@ -62,9 +63,25 @@ public class FunctionCaller {
      */
     public String getLog(UserData userData, long fromTimeStamp) {
         log.info("getLog from {}", fromTimeStamp);
-        String command = String.format("echo '{\"run\":\"get_log\", \"from\":\"%d\"}' | ./esc -n0 ", fromTimeStamp);
-        command = command.concat(userData.getDataAsEscParams());
+        String command = String.format("echo '{\"run\":\"get_log\", \"from\":\"%d\"}' | ", fromTimeStamp)
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(userData.getDataAsEscParams());
         return callFunction(command);
+    }
+
+    /**
+     * Calls retrieve_funds function.
+     *
+     * @param userData      data of user, who will retrieve funds
+     * @param remoteAddress account address from which funds will be retrieved
+     * @return response: json when request was correct, empty otherwise
+     */
+    public String retrieveFunds(UserData userData, String remoteAddress) {
+        log.info("retrieveFunds by {} from {}", userData.getAddress(), remoteAddress);
+        String command = String.format("(echo '{\"run\":\"get_me\"}';echo '{\"run\":\"retrieve_funds\", \"address\":\"%s\"}') | ", remoteAddress)
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(userData.getDataAsEscParams());
+        String output = callFunction(command);
+        output = output.replaceFirst(".*}\\s*\\{", "{");
+        return output;
     }
 
     /**
@@ -77,7 +94,8 @@ public class FunctionCaller {
      */
     public String sendOne(UserData sender, String receiverAddress, String amount) {
         log.info("sendOne {}->{}: {}", sender.getAddress(), receiverAddress, amount);
-        String command = String.format("(echo '{\"run\":\"get_me\"}';echo '{\"run\":\"send_one\", \"address\":\"%s\", \"amount\":\"%s\"}') | ./esc -n0 ", receiverAddress, amount).concat(sender.getDataAsEscParams());
+        String command = String.format("(echo '{\"run\":\"get_me\"}';echo '{\"run\":\"send_one\", \"address\":\"%s\", \"amount\":\"%s\"}') | ", receiverAddress, amount)
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(sender.getDataAsEscParams());
         String output = callFunction(command);
         output = output.replaceFirst(".*}\\s*\\{", "{");
         return output;
@@ -97,7 +115,8 @@ public class FunctionCaller {
         }
         Gson gson = new GsonBuilder().create();
         String wires = gson.toJson(receiverMap);
-        String command = String.format("(echo '{\"run\":\"get_me\"}';echo '{\"run\":\"send_many\", \"wires\":%s}') | ./esc -n0 ", wires).concat(sender.getDataAsEscParams());
+        String command = String.format("(echo '{\"run\":\"get_me\"}';echo '{\"run\":\"send_many\", \"wires\":%s}') | ", wires)
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(sender.getDataAsEscParams());
         String output = callFunction(command);
         output = output.replaceFirst(".*}\\s*\\{", "{");
         return output;
@@ -109,7 +128,7 @@ public class FunctionCaller {
      * @param cmd command
      * @return stdout response
      */
-    private String callFunction(String cmd) {
+    public String callFunction(String cmd) {
         log.debug("request: {}", cmd);
         String[] cmdArr = {
                 "/bin/sh",
@@ -141,6 +160,22 @@ public class FunctionCaller {
             log.warn("Empty response for: {}", cmd);
         }
         return resp;
+    }
+
+    /**
+     * Returns timestamp of last event in log.
+     *
+     * @param userData user data
+     * @return timestamp of last event in log or 0 if log is empty
+     */
+    public long getLastEventTimestamp(UserData userData) {
+        JsonParser parser = new JsonParser();
+        JsonObject jsonResp = parser.parse(getLog(userData)).getAsJsonObject();
+        JsonArray jsonLogArray = jsonResp.getAsJsonArray("log");
+        int size = jsonLogArray.size();
+        long time = (size > 0) ? jsonLogArray.get(size - 1).getAsJsonObject().get("time").getAsLong() : 0;
+        log.info("last log event time: {} ({})", time, Utils.formatSecondsAsDate(time));
+        return time;
     }
 
     /**

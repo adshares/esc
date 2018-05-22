@@ -7,6 +7,10 @@ import java.math.BigDecimal;
  */
 public class EscConst {
     /**
+     * BLOCKDIV number of blocks for dividend update
+     */
+    public static final int BLOCK_DIVIDEND = 4;
+    /**
      * BLOCKSEC block period in seconds
      */
     public static final int BLOCK_PERIOD = 32;
@@ -26,6 +30,14 @@ public class EscConst {
      * TXS_MPT_FEE local multiple transfer coefficient
      */
     public static final BigDecimal MULTI_TX_FEE_COEFFICIENT = new BigDecimal("0.0005");
+    /**
+     * TXS_GET_FEE retrieve funds from remote/dead bank request fee
+     */
+    public static final BigDecimal RETRIEVE_REQUEST_FEE = new BigDecimal("0.00001000000");
+    /**
+     * TXS_GOK_FEE(x) retrieve funds from remote/dead bank fee, x is retrieved amount
+     */
+    public static final BigDecimal RETRIEVE_FEE = new BigDecimal("0.001");
     /**
      * USER_MIN_MASS minimum user balance after outgoing transfer
      */

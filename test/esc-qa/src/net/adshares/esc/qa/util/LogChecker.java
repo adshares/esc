@@ -19,14 +19,24 @@ public class LogChecker {
     }
 
     public LogChecker(String resp) {
-        JsonParser parser = new JsonParser();
         this.jsonResp = convertStringToJsonObject(resp);
     }
 
+    /**
+     * Sets response which will be checked.
+     *
+     * @param resp json response for get_log function
+     */
     public void setResp(String resp) {
         this.jsonResp = convertStringToJsonObject(resp);
     }
 
+    /**
+     * Converts String response to JsonObject.
+     *
+     * @param resp json response for get_log function
+     * @return response as JsonObject
+     */
     private JsonObject convertStringToJsonObject(String resp) {
         JsonParser parser = new JsonParser();
         return parser.parse(resp).getAsJsonObject();
@@ -84,6 +94,8 @@ public class LogChecker {
                 BigDecimal amount;
                 if ("create_account".equals(type) || "change_account_key".equals(type)
                         || "send_one".equals(type) || "send_many".equals(type)
+                        || "broadcast".equals(type) // type_no == 3
+                        || ("retrieve_funds".equals(type) && "8".equals(typeNo)) // retrieve_funds call
                         || ("create_node".equals(type) && "7".equals(typeNo))) {// create_node request
                     amount = new BigDecimal(logEntry.get("amount").getAsString());
                     if ("out".equals(logEntry.get("inout").getAsString())) {
@@ -117,6 +129,13 @@ public class LogChecker {
                     // create_node request accepted
                     amount = BigDecimal.ZERO;
 
+                } else if ("retrieve_funds".equals(type) && "32776".equals(typeNo)) {
+                    // retrieve_funds response
+
+                    // sender_fee is included in amount:
+                    // amount = sender_amount - sender_fee
+                    amount = new BigDecimal(logEntry.get("amount").getAsString());
+
                 } else {
                     log.warn("Unknown type: " + type + ", no " + typeNo);
                     amount = BigDecimal.ZERO;
@@ -128,5 +147,19 @@ public class LogChecker {
         }
 
         return balance;
+    }
+
+    /**
+     * Compares balance read from account object and computed from log array.
+     *
+     * @return true if balances are equal, false otherwise
+     */
+    public boolean isBalanceFromObjectEqualToArray() {
+        BigDecimal balanceObj = getBalanceFromAccountObject();
+        BigDecimal balanceArr = getBalanceFromLogArray();
+        log.info("balanceObj: {}", balanceObj.toPlainString());
+        log.info("balanceArr: {}", balanceArr.toPlainString());
+        log.info("diff      : {}", balanceObj.subtract(balanceArr).toPlainString());
+        return balanceObj.compareTo(balanceArr) == 0;
     }
 }
