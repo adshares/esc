@@ -1,3 +1,4 @@
+@retrieve_funds
 Feature: Retrieve funds
 
   Scenario: Retrieve funds from inactive remote normal account

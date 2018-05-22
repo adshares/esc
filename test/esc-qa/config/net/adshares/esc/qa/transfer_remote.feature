@@ -1,3 +1,4 @@
+@transfer
 Feature: remote transfers
 
     Scenario: Send 100 ADST
