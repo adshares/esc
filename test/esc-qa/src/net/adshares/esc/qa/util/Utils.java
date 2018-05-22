@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.text.SimpleDateFormat;
@@ -56,16 +57,34 @@ public class Utils {
     }
 
     /**
-     * Adds intendation to json String.
+     * Adds indentation to json String.
      *
      * @param jsonString json String
      * @return formatted json String
      */
-    public String jsonPrettyPrint(String jsonString) {
+    public static String jsonPrettyPrint(String jsonString) {
         JsonParser parser = new JsonParser();
         JsonObject json = parser.parse(jsonString).getAsJsonObject();
 
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         return gson.toJson(json);
+    }
+
+    /**
+     * Return file content as String.
+     *
+     * @param fileName file name
+     * @return file content or empty String, if error occurred
+     */
+    public static String readFileAsString(String fileName) {
+        byte[] encoded;
+        String fileContent;
+        try {
+            encoded = Files.readAllBytes(Paths.get(fileName));
+            fileContent = new String(encoded, StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            fileContent = "";
+        }
+        return fileContent;
     }
 }

@@ -395,17 +395,6 @@ public class TransferStepdefs {
         for (UserData user : userDataList) {
             FunctionCaller fc = FunctionCaller.getInstance();
             String userLog = fc.getLog(user);
-//            fc.jsonPrettyPrint(userLog);
-//
-//            byte[] encoded;
-//            String userLog;
-//            try {
-//                encoded = Files.readAllBytes(Paths.get("file.json"));
-//                userLog = new String(encoded, StandardCharsets.UTF_8);
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//                userLog ="";
-//            }
 
             log.debug(user.getAddress());
             checkUserLog(userLog);
