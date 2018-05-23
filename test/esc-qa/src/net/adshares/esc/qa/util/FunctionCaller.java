@@ -6,10 +6,9 @@ import net.adshares.esc.qa.stepdefs.TransferUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class FunctionCaller {
@@ -29,6 +28,46 @@ public class FunctionCaller {
             instance = new FunctionCaller();
         }
         return instance;
+    }
+
+    /**
+     * Calls broadcast function, which sends message to the network.
+     *
+     * @param userData user data
+     * @param message  message as hexadecimal String with even number of characters
+     * @return response: json when request was correct, empty otherwise
+     */
+    public String broadcast(UserData userData, String message) {
+        log.info("broadcast");
+        String command = String.format("(echo '{\"run\":\"get_me\"}';echo '{\"run\":\"broadcast\", \"message\":\"%s\"}') | ", message)
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(userData.getDataAsEscParams());
+        String output = callFunction(command);
+        output = output.replaceFirst(".*}\\s*\\{", "{");
+        return output;
+    }
+
+    /**
+     * Calls get_broadcast function, which gets broadcast messages from last block.
+     *
+     * @param userData user data
+     * @return response: json when request was correct, empty otherwise
+     */
+    public String getBroadcast(UserData userData) {
+        return getBroadcast(userData, "0");
+    }
+
+    /**
+     * Calls get_broadcast function, which gets broadcast messages from block.
+     *
+     * @param userData  user data
+     * @param blockTime block time in Unix Epoch seconds, 0 for last block
+     * @return response: json when request was correct, empty otherwise
+     */
+    public String getBroadcast(UserData userData, String blockTime) {
+        log.info("getBroadcast");
+        String command = String.format("echo '{\"run\":\"get_broadcast\", \"from\":\"%s\"}' | ", blockTime)
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(userData.getDataAsEscParams());
+        return callFunction(command);
     }
 
     /**

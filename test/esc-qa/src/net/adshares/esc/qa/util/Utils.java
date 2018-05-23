@@ -57,15 +57,24 @@ public class Utils {
     }
 
     /**
+     * Converts String to JsonObject.
+     *
+     * @param jsonString json formatted String
+     * @return JsonObject
+     */
+    public static JsonObject convertStringToJsonObject(String jsonString) {
+        JsonParser parser = new JsonParser();
+        return parser.parse(jsonString).getAsJsonObject();
+    }
+
+    /**
      * Adds indentation to json String.
      *
      * @param jsonString json String
      * @return formatted json String
      */
     public static String jsonPrettyPrint(String jsonString) {
-        JsonParser parser = new JsonParser();
-        JsonObject json = parser.parse(jsonString).getAsJsonObject();
-
+        JsonObject json = convertStringToJsonObject(jsonString);
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         return gson.toJson(json);
     }
