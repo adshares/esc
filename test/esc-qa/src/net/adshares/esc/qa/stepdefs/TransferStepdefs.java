@@ -390,32 +390,18 @@ public class TransferStepdefs {
 
     @Given("user log")
     public void user_log() {
+        FunctionCaller fc = FunctionCaller.getInstance();
+        LogChecker lc = new LogChecker();
         List<UserData> userDataList = UserDataProvider.getInstance().getUserDataList();
 
         for (UserData user : userDataList) {
-            FunctionCaller fc = FunctionCaller.getInstance();
             String userLog = fc.getLog(user);
 
             log.debug(user.getAddress());
-            checkUserLog(userLog);
+            lc.setResp(userLog);
+            Assert.assertTrue(lc.isBalanceFromObjectEqualToArray());
             log.debug("success");
         }
-    }
-
-    /**
-     * Checks user log returned by get_log function.
-     *
-     * @param userLog get_log response
-     */
-    private void checkUserLog(String userLog) {
-        LogChecker lc = new LogChecker(userLog);
-
-        // balance read from response
-        BigDecimal balanceRead = lc.getBalanceFromAccountObject();
-        // balance computed from all operations in user log
-        BigDecimal balance = lc.getBalanceFromLogArray();
-
-        Assert.assertEquals(balance, balanceRead);
     }
 
     /**

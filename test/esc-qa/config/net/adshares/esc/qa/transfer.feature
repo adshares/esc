@@ -1,4 +1,5 @@
 @transfer
+@transfer_local
 Feature: local transfers
 
     Scenario: Send 100 ADST
