@@ -150,6 +150,30 @@ public class LogChecker {
     }
 
     /**
+     * Returns array of log events that match filter.
+     *
+     * @param filter LogFilter, null for all events
+     * @return array of log events matching filter
+     */
+    public JsonArray getFilteredLogArray(LogFilter filter) {
+        JsonArray logArr = jsonResp.getAsJsonArray("log");
+        JsonArray newArr = new JsonArray();
+
+        for (JsonElement je : logArr) {
+            JsonObject logEntry = je.getAsJsonObject();
+
+            // checking entry with filter
+            if (filter != null) {
+                if (!filter.processEntry(logEntry)) {
+                    continue;
+                }
+            }
+            newArr.add(logEntry);
+        }
+        return newArr;
+    }
+
+    /**
      * Compares balance read from account object and computed from log array.
      *
      * @return true if balances are equal, false otherwise
