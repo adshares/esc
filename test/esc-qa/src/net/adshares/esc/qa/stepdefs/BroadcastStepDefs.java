@@ -15,6 +15,7 @@ import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.xml.bind.DatatypeConverter;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Random;
@@ -26,6 +27,12 @@ public class BroadcastStepDefs {
     private List<UserData> userDataList;
     private String broadcastBlockTime;
     private String broadcastMessage;
+    /**
+     * Maximal message size in bytes
+     *
+     * Message size is limited by maximum String length. Every byte is encoded as two chars.
+     */
+    private static final int MESSAGE_MAX_SIZE = Integer.MAX_VALUE / 2 + 1;
 
     @Given("^set of users$")
     public void set_of_users() {
@@ -34,7 +41,7 @@ public class BroadcastStepDefs {
 
     @When("^one of them sends broadcast message$")
     public void one_of_them_sends_broadcast_message() {
-        broadcastMessage = generateMessage();
+        broadcastMessage = generateMessage(16);
         BigDecimal feeExpected = getSendBroadcastFee(broadcastMessage);
 
         UserData u = userDataList.get(0);
@@ -44,14 +51,18 @@ public class BroadcastStepDefs {
 
         JsonObject o = Utils.convertStringToJsonObject(resp);
         BigDecimal fee = o.getAsJsonObject("tx").get("fee").getAsBigDecimal();
+        BigDecimal deduct = o.getAsJsonObject("tx").get("deduct").getAsBigDecimal();
         int blockTimeInt = o.get("current_block_time").getAsInt();
         broadcastBlockTime = Integer.toHexString(blockTimeInt);
         log.info("block time:  {}", broadcastBlockTime);
 
+        log.info("deduct:         {}", deduct.toPlainString());
         log.info("fee:         {}", fee.toPlainString());
         log.info("feeExpected: {}", feeExpected.toPlainString());
         log.info("diff:        {}", feeExpected.subtract(fee).toPlainString());
-        Assert.assertEquals(fee, feeExpected);
+
+        Assert.assertEquals("Deduct is not equal to fee.", deduct, fee);
+        Assert.assertEquals(feeExpected, fee);
     }
 
     @Then("^all of them can read it$")
@@ -86,22 +97,17 @@ public class BroadcastStepDefs {
     /**
      * Generates random message.
      *
+     * @param size size of message in bytes
      * @return random message, hexadecimal String (without leading '0x', with even number of characters)
      */
-    private static String generateMessage() {
-        // message maximal length
-        int maxLen = 16000;
-
-        Random r = new Random();
-        StringBuilder sb = new StringBuilder();
-        int msgLen = r.nextInt(maxLen);
-        if (msgLen % 2 == 1) {
-            msgLen--;
+    private String generateMessage(int size) {
+        Random random = new Random();
+        if (size > MESSAGE_MAX_SIZE) {
+            size = MESSAGE_MAX_SIZE;
         }
-        for (int i = 0; i < msgLen; i++) {
-            sb.append(Integer.toHexString(r.nextInt(16)));
-        }
-        return sb.toString();
+        byte[] resBuf = new byte[size];
+        random.nextBytes(resBuf);
+        return DatatypeConverter.printHexBinary(resBuf);
     }
 
     /**

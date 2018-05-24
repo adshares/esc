@@ -3,18 +3,25 @@ package net.adshares.esc.qa.util;
 import com.google.gson.*;
 import net.adshares.esc.qa.data.UserData;
 import net.adshares.esc.qa.stepdefs.TransferUser;
+import org.apache.commons.exec.CommandLine;
+import org.apache.commons.exec.DefaultExecutor;
+import org.apache.commons.exec.ExecuteWatchdog;
+import org.apache.commons.exec.PumpStreamHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class FunctionCaller {
 
     private static final String ESC_BINARY = "docker exec -i -w /tmp/esc adshares_esc_1 esc";
     private static final String ESC_BINARY_OPTS = " -n0 ";
+    /**
+     * Name of temporary file that is created for commands that cannot be called directly in shell
+     */
+    private static final String TEMP_FILE_NAME = "tmp";
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -169,35 +176,57 @@ public class FunctionCaller {
      */
     public String callFunction(String cmd) {
         log.debug("request: {}", cmd);
-        String[] cmdArr = {
-                "/bin/sh",
-                "-c",
-                cmd
-        };
 
-        StringBuilder sb = new StringBuilder();
-        Process proc;
-        try {
-            proc = Runtime.getRuntime().exec(cmdArr);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ByteArrayOutputStream errorStream = new ByteArrayOutputStream();
+        PumpStreamHandler streamHandler = new PumpStreamHandler(outputStream, errorStream);
 
-            String line;
-            BufferedReader in = new BufferedReader(new InputStreamReader(proc.getInputStream()));
-            while ((line = in.readLine()) != null) {
-                sb.append(line);
+        CommandLine cmdLine = new CommandLine("/bin/sh");
+
+        if (cmd.length() < 12000) {
+            cmdLine.addArgument("-c").addArgument(cmd, false);
+        } else {
+            log.info("command length {}", cmd.length());
+            // when command is too long it is not possible to call it using sh shell
+            // command is saved to file and file is new command
+
+            PrintWriter writer = null;
+            try {
+                writer = new PrintWriter(TEMP_FILE_NAME, "UTF-8");
+                writer.println(cmd);
+                writer.close();
+            } catch (FileNotFoundException e) {
+                log.error("File not found");
+                log.error(e.toString());
+            } catch (UnsupportedEncodingException uee) {
+                log.error("Unsupported Encoding");
+                log.error(uee.toString());
             }
-            in.close();
-            proc.waitFor();
+            cmdLine.addArgument(TEMP_FILE_NAME);
+        }
 
+        DefaultExecutor executor = new DefaultExecutor();
+        executor.setStreamHandler(streamHandler);
+        executor.setWatchdog(new ExecuteWatchdog(60000L));// 60,000 ms = 1 min.
+        try {
+            executor.execute(cmdLine);
         } catch (IOException e) {
             log.error("Cannot read from ESC");
-        } catch (InterruptedException e) {
-            log.error("ESC process timeout");
+            log.error(e.toString());
         }
-        String resp = sb.toString();
+        String resp = outputStream.toString();
         log.debug("resp: {}", resp);
         if ("".equals(resp)) {
             log.warn("Empty response for: {}", cmd);
         }
+
+        try {
+            Utils.deleteDirectory(TEMP_FILE_NAME);
+        } catch (IOException e) {
+            log.error("Cannot delete {}", TEMP_FILE_NAME);
+            log.error(e.toString());
+        }
+
         return resp;
     }
 
