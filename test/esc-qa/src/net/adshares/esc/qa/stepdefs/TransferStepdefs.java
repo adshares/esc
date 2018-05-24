@@ -449,7 +449,7 @@ public class TransferStepdefs {
     }
 
     /**
-     * Compares transfer amount and computed fee with values returned from sendOne (tx/deduct, tx/fee) function.
+     * Compares transfer amount and computed fee with values returned from send_one function (tx/deduct, tx/fee).
      *
      * @param jsonResp     send_one response as String
      * @param transferData transfer data
@@ -459,8 +459,8 @@ public class TransferStepdefs {
         JsonObject o = parser.parse(jsonResp).getAsJsonObject();
         o = o.getAsJsonObject("tx");
 
-        BigDecimal amount = o.get("deduct").getAsBigDecimal();
         BigDecimal fee = o.get("fee").getAsBigDecimal();
+        BigDecimal amount = o.get("deduct").getAsBigDecimal().subtract(fee);
 
         Assert.assertEquals("Invalid transfer amount.", amount, transferData.getAmount());
         Assert.assertEquals("Invalid transfer fee.", fee, transferData.getFee());
