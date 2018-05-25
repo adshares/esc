@@ -9,7 +9,7 @@ Feature: Broadcast message
       |msg_size|
       |1|
       |2|
-      |10|
+      |32|
       |32000|
 
   Scenario Outline: Broadcast <msg_size> bytes message (invalid size)

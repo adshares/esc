@@ -43,9 +43,9 @@ public class EscConst {
      */
     public static final BigDecimal RETRIEVE_FEE = new BigDecimal("0.001");
     /**
-     * TXS_BRO_FEE(x) broadcast message fee, x is message length in bytes
+     * ~TXS_BRO_FEE(x) broadcast message fee per every byte above 32 bytes of message size
      */
-    public static final BigDecimal BROADCAST_FEE_COEFFICIENT = new BigDecimal("0.00000050000");
+    public static final BigDecimal BROADCAST_FEE_PER_BYTE = new BigDecimal("0.00000001000");
     /**
      * USER_MIN_MASS minimum user balance after outgoing transfer
      */

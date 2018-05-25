@@ -47,7 +47,7 @@ public class BroadcastStepDefs {
         UserData u = userDataList.get(0);
         FunctionCaller fc = FunctionCaller.getInstance();
 
-        BroadcastMessageData bmd = getBroadcastMessageData(fc, u, messageSize);
+        BroadcastMessageData bmd = sendBroadcastMessageData(u, messageSize);
         bmdSet = new HashSet<>();
         bmdSet.add(bmd);
     }
@@ -67,18 +67,27 @@ public class BroadcastStepDefs {
         int messageSize = 1;
         bmdSet = new HashSet<>();
         do {
-            BroadcastMessageData bmd = getBroadcastMessageData(fc, u, messageSize);
+            BroadcastMessageData bmd = sendBroadcastMessageData(u, messageSize);
             bmdSet.add(bmd);
 
             messageSize *= 2;
         } while (messageSize <= EscConst.BROADCAST_MESSAGE_MAX_SIZE);
     }
 
-    private BroadcastMessageData getBroadcastMessageData(FunctionCaller fc, UserData u, int messageSize) {
-        String message = generateMessage(messageSize);
-        BigDecimal feeExpected = getSendBroadcastFee(message);
+    /**
+     * Broadcast random message.
+     *
+     * @param userData    user data
+     * @param messageSize size of message in bytes
+     * @return BroadcastMessageData object
+     */
+    private BroadcastMessageData sendBroadcastMessageData(UserData userData, int messageSize) {
+        FunctionCaller fc = FunctionCaller.getInstance();
 
-        String resp = fc.broadcast(u, message);
+        String message = generateMessage(messageSize);
+        BigDecimal feeExpected = getBroadcastFee(message);
+
+        String resp = fc.broadcast(userData, message);
         Assert.assertTrue(EscUtils.isTransactionAcceptedByNode(resp));
 
         JsonObject o = Utils.convertStringToJsonObject(resp);
@@ -138,11 +147,11 @@ public class BroadcastStepDefs {
                             log.info("try check next block");
                             blockTime = EscUtils.getNextBlock(blockTime);
                             nextBlockCheckAttempt++;
-                        }else {
+                        } else {
                             Assert.fail("No message");
                         }
                     }
-                } while(isError);
+                } while (isError);
 
                 JsonArray broadcastArr = o.getAsJsonArray("broadcast");
                 int size = broadcastArr.size();
@@ -204,12 +213,17 @@ public class BroadcastStepDefs {
      * @param message message
      * @return fee for broadcasting message
      */
-    private BigDecimal getSendBroadcastFee(String message) {
+    private BigDecimal getBroadcastFee(String message) {
         int len = message.length();
 
         Assert.assertEquals("Not even length of message. Current length = " + len, 0, len % 2);
         int sizeBytes = len / 2;
-        return EscConst.BROADCAST_FEE_COEFFICIENT.multiply(new BigDecimal(sizeBytes)).add(EscConst.MIN_TX_FEE);
+
+        BigDecimal fee = EscConst.MIN_TX_FEE;
+        if (sizeBytes > 32) {
+            fee = fee.add(EscConst.BROADCAST_FEE_PER_BYTE.multiply(new BigDecimal(sizeBytes - 32)));
+        }
+        return fee;
     }
 
     class BroadcastMessageData {
