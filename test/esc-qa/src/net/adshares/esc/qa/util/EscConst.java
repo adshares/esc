@@ -15,6 +15,10 @@ public class EscConst {
      */
     public static final int BLOCK_PERIOD = 32;
     /**
+     * Maximum message size in bytes that can be broadcast
+     */
+    public static final int BROADCAST_MESSAGE_MAX_SIZE = 32000;
+    /**
      * TXS_MIN_FEE minimum transfer fee
      */
     public static final BigDecimal MIN_TX_FEE = new BigDecimal("0.00000010000");
@@ -50,4 +54,12 @@ public class EscConst {
      * BANK_MIN_UMASS minimum bank balance after outgoing transfer
      */
     public static final BigDecimal BANK_MIN_UMASS = new BigDecimal("10.00000000000");
+
+    /**
+     * Error messages
+     */
+    public class Error {
+        public static final String BROADCAST_NOT_READY = "Broadcast not ready, try again later";
+        public static final String BROADCAST_NO_FILE_TO_SEND = "No broadcast file to send";
+    }
 }

@@ -17,19 +17,22 @@ import org.slf4j.LoggerFactory;
 
 import javax.xml.bind.DatatypeConverter;
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 public class BroadcastStepDefs {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
     private List<UserData> userDataList;
-    private String broadcastBlockTime;
-    private String broadcastMessage;
+    private Set<BroadcastMessageData> bmdSet;
+    private String lastResp;
+
     /**
-     * Maximal message size in bytes
-     *
+     * Maximum message size in bytes
+     * <p>
      * Message size is limited by maximum String length. Every byte is encoded as two chars.
      */
     private static final int MESSAGE_MAX_SIZE = Integer.MAX_VALUE / 2 + 1;
@@ -39,22 +42,51 @@ public class BroadcastStepDefs {
         userDataList = UserDataProvider.getInstance().getUserDataList();
     }
 
-    @When("^one of them sends broadcast message$")
-    public void one_of_them_sends_broadcast_message() {
-        broadcastMessage = generateMessage(16);
-        BigDecimal feeExpected = getSendBroadcastFee(broadcastMessage);
-
+    @When("^one of them sends valid broadcast message which size is (\\d+) byte\\(s\\)$")
+    public void one_of_them_sends_broadcast_message(int messageSize) {
         UserData u = userDataList.get(0);
         FunctionCaller fc = FunctionCaller.getInstance();
-        String resp = fc.broadcast(u, broadcastMessage);
+
+        BroadcastMessageData bmd = getBroadcastMessageData(fc, u, messageSize);
+        bmdSet = new HashSet<>();
+        bmdSet.add(bmd);
+    }
+
+    @When("^one of them sends broadcast message which size is (\\d+) bytes$")
+    public void one_of_them_sends_broadcast_message_len(int messageSize) {
+        UserData u = userDataList.get(0);
+        FunctionCaller fc = FunctionCaller.getInstance();
+        lastResp = fc.broadcast(u, generateMessage(messageSize));
+    }
+
+    @When("^one of them sends many broadcast messages$")
+    public void one_of_them_send_many_broadcast_messages() {
+        FunctionCaller fc = FunctionCaller.getInstance();
+        UserData u = userDataList.get(0);
+
+        int messageSize = 1;
+        bmdSet = new HashSet<>();
+        do {
+            BroadcastMessageData bmd = getBroadcastMessageData(fc, u, messageSize);
+            bmdSet.add(bmd);
+
+            messageSize *= 2;
+        } while (messageSize <= EscConst.BROADCAST_MESSAGE_MAX_SIZE);
+    }
+
+    private BroadcastMessageData getBroadcastMessageData(FunctionCaller fc, UserData u, int messageSize) {
+        String message = generateMessage(messageSize);
+        BigDecimal feeExpected = getSendBroadcastFee(message);
+
+        String resp = fc.broadcast(u, message);
         Assert.assertTrue(EscUtils.isTransactionAcceptedByNode(resp));
 
         JsonObject o = Utils.convertStringToJsonObject(resp);
         BigDecimal fee = o.getAsJsonObject("tx").get("fee").getAsBigDecimal();
         BigDecimal deduct = o.getAsJsonObject("tx").get("deduct").getAsBigDecimal();
         int blockTimeInt = o.get("current_block_time").getAsInt();
-        broadcastBlockTime = Integer.toHexString(blockTimeInt);
-        log.info("block time:  {}", broadcastBlockTime);
+        String blockTime = Integer.toHexString(blockTimeInt);
+        log.info("block time:  {}", blockTime);
 
         log.info("deduct:         {}", deduct.toPlainString());
         log.info("fee:         {}", fee.toPlainString());
@@ -63,34 +95,90 @@ public class BroadcastStepDefs {
 
         Assert.assertEquals("Deduct is not equal to fee.", deduct, fee);
         Assert.assertEquals(feeExpected, fee);
+
+        return new BroadcastMessageData(message, blockTime);
     }
 
     @Then("^all of them can read it$")
     public void all_of_them_can_read_it() {
+        FunctionCaller fc = FunctionCaller.getInstance();
+        // waiting time for message in block periods
+        int delay = 0;
+        // maximum waiting time for message in block periods
+        int delayMax = 2;
+
+        for (UserData u : userDataList) {
+
+            for (BroadcastMessageData bmd : bmdSet) {
+                String message = bmd.getMessage();
+                boolean isMessageReceived = false;
+                String blockTime = bmd.getBlockTime();
+                int nextBlockCheckAttempt = 0;
+                int nextBlockCheckAttemptMax = 2;
+                String resp;
+                JsonObject o;
+
+                boolean isError;
+                do {
+                    resp = fc.getBroadcast(u, blockTime);
+                    o = Utils.convertStringToJsonObject(resp);
+
+                    isError = o.has("error");
+                    if (isError) {
+                        String err = o.get("error").getAsString();
+                        log.warn("get_broadcast error: {}", err);
+
+                        if (EscConst.Error.BROADCAST_NOT_READY.equals(err)) {
+                            Assert.assertTrue(delay < delayMax);
+                            log.info("wait another block");
+                            waitForBlock();
+                            delay++;
+                        } else if (EscConst.Error.BROADCAST_NO_FILE_TO_SEND.equals(err)) {
+                            Assert.assertTrue(nextBlockCheckAttempt < nextBlockCheckAttemptMax);
+                            log.info("try check next block");
+                            blockTime = EscUtils.getNextBlock(blockTime);
+                            nextBlockCheckAttempt++;
+                        }else {
+                            Assert.fail("No message");
+                        }
+                    }
+                } while(isError);
+
+                JsonArray broadcastArr = o.getAsJsonArray("broadcast");
+                int size = broadcastArr.size();
+                log.info("size {}", size);
+                for (int i = 0; i < size; i++) {
+                    String msgRec = broadcastArr.get(i).getAsJsonObject().get("message").getAsString();
+                    if (message.equals(msgRec)) {
+                        log.info("received message");
+                        isMessageReceived = true;
+                        break;
+                    }
+                }
+                Assert.assertTrue("Didn't receive message.", isMessageReceived);
+            }
+
+        }
+    }
+
+    private void waitForBlock() {
         try {
             Thread.sleep(1000L * EscConst.BLOCK_PERIOD);
         } catch (InterruptedException e) {
             log.error("Sleep interrupted");
             log.error(e.toString());
         }
-        FunctionCaller fc = FunctionCaller.getInstance();
+    }
 
-        String resp;
-        String msg;
-        for (UserData u : userDataList) {
-            resp = fc.getBroadcast(u, broadcastBlockTime);
-
-            JsonObject o = Utils.convertStringToJsonObject(resp);
-            JsonArray broadcastArr = o.getAsJsonArray("broadcast");
-            int size = broadcastArr.size();
-            log.info("size {}", size);
-            for (int i = 0; i < size; i++) {
-                msg = broadcastArr.get(i).getAsJsonObject().get("message").getAsString();
-                log.info("{} message: {}", i, msg);
-                if (broadcastMessage.equals(msg)) {
-                    break;
-                }
-            }
+    @Then("^message is rejected$")
+    public void message_is_rejected() {
+        JsonObject o = Utils.convertStringToJsonObject(lastResp);
+        if (o.has("error")) {
+            String err = o.get("error").getAsString();
+            log.info("Message was rejected with error: {}", err);
+        } else {
+            Assert.assertFalse(EscUtils.isTransactionAcceptedByNode(lastResp));
+            log.info("Message was rejected: not accepted by node");
         }
     }
 
@@ -122,5 +210,23 @@ public class BroadcastStepDefs {
         Assert.assertEquals("Not even length of message. Current length = " + len, 0, len % 2);
         int sizeBytes = len / 2;
         return EscConst.BROADCAST_FEE_COEFFICIENT.multiply(new BigDecimal(sizeBytes)).add(EscConst.MIN_TX_FEE);
+    }
+
+    class BroadcastMessageData {
+        private String message;
+        private String blockTime;
+
+        BroadcastMessageData(String message, String blockTime) {
+            this.message = message;
+            this.blockTime = blockTime;
+        }
+
+        String getMessage() {
+            return message;
+        }
+
+        String getBlockTime() {
+            return blockTime;
+        }
     }
 }

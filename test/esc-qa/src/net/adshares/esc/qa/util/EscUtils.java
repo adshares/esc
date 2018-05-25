@@ -17,4 +17,16 @@ public class EscUtils {
 
         return o.has("id");
     }
+
+    /**
+     * Returns hex String for next block.
+     *
+     * @param blockTime hex String
+     * @return next block time in hex
+     */
+    public static String getNextBlock(String blockTime) {
+        int time = Integer.parseInt(blockTime, 16);
+        time += EscConst.BLOCK_PERIOD;
+        return Integer.toHexString(time);
+    }
 }
