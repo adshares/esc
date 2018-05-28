@@ -65,7 +65,7 @@ public class TransferStepdefs {
         }
     }
 
-    @When("^sender sends (\\d+(\\.\\d+)?) ADST to receiver[s]?$")
+    @When("^sender sends ([-]?\\d+(\\.\\d+)?) ADST to receiver[s]?$")
     public void send_adst(String txAmount, String decimalPart) {
         FunctionCaller fc = FunctionCaller.getInstance();
         UserData sender = txSender.getUserData();
@@ -99,8 +99,9 @@ public class TransferStepdefs {
         BigDecimal senderBalance = txSender.getStartBalance();
         BigDecimal tmpSenderExpBalance = senderBalance.subtract(amountOut).subtract(fee);
         BigDecimal minAccountBalance = sender.getMinAllowedBalance();
-        // update balances, if transfer is possible
-        if (tmpSenderExpBalance.compareTo(minAccountBalance) >= 0) {
+        // check, if transfer is possible and balance won't be bigger after transfer
+        if (tmpSenderExpBalance.compareTo(minAccountBalance) >= 0 && tmpSenderExpBalance.compareTo(senderBalance) < 0) {
+            // update balances, if transfer is possible
             Assert.assertTrue("transfer was not accepted by node", EscUtils.isTransactionAcceptedByNode(jsonResp));
 
             // receivers
@@ -340,7 +341,7 @@ public class TransferStepdefs {
         FunctionCaller fc = FunctionCaller.getInstance();
         for (TransferUser receiver : txReceivers) {
             BigDecimal receiverExpBalance = receiver.getExpBalance();
-            Assert.assertNotEquals(receiver.getStartBalance(), receiverExpBalance);
+            Assert.assertNotEquals(receiverExpBalance, receiver.getStartBalance());
             Assert.assertEquals(receiverExpBalance, fc.getUserAccountBalance(receiver));
         }
     }
@@ -350,7 +351,7 @@ public class TransferStepdefs {
         FunctionCaller fc = FunctionCaller.getInstance();
         for (TransferUser receiver : txReceivers) {
             BigDecimal receiverExpBalance = receiver.getExpBalance();
-            Assert.assertEquals(receiver.getStartBalance(), receiverExpBalance);
+            Assert.assertEquals(receiverExpBalance, receiver.getStartBalance());
             Assert.assertEquals(receiverExpBalance, fc.getUserAccountBalance(receiver));
         }
     }
@@ -358,7 +359,7 @@ public class TransferStepdefs {
     @Then("^sender balance is decreased by sent amount and fee$")
     public void check_balance_chg_sender() {
         BigDecimal senderExpBalance = txSender.getExpBalance();
-        Assert.assertNotEquals(txSender.getStartBalance(), senderExpBalance);
+        Assert.assertNotEquals(senderExpBalance, txSender.getStartBalance());
         FunctionCaller fc = FunctionCaller.getInstance();
         Assert.assertEquals(senderExpBalance, fc.getUserAccountBalance(txSender));
     }
@@ -366,7 +367,7 @@ public class TransferStepdefs {
     @Then("^sender balance does not change$")
     public void check_balance_sender() {
         BigDecimal senderExpBalance = txSender.getExpBalance();
-        Assert.assertEquals(txSender.getStartBalance(), senderExpBalance);
+        Assert.assertEquals(senderExpBalance, txSender.getStartBalance());
         FunctionCaller fc = FunctionCaller.getInstance();
         Assert.assertEquals(senderExpBalance, fc.getUserAccountBalance(txSender));
     }

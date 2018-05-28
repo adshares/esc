@@ -11,8 +11,12 @@ public class EscUtils {
      */
     public static boolean isTransactionAcceptedByNode(String jsonResp) {
         JsonObject o = Utils.convertStringToJsonObject(jsonResp);
-        o = o.getAsJsonObject("tx");
 
+        if (o.has("error")) {
+            return false;
+        }
+
+        o = o.getAsJsonObject("tx");
         return o.has("id");
     }
 

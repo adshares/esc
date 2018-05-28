@@ -14,11 +14,17 @@ Feature: local transfers
         Then receiver balance is increased by sent amount
         And sender balance is decreased by sent amount and fee
 
-    Scenario: Send non existing amount of ADST
+    Scenario Outline: Send non existing <amount> ADST
         Given 2 users in same node
-        When sender sends 40000000 ADST to receiver
+        When sender sends <amount> ADST to receiver
         Then receiver balance does not change
         And sender balance does not change
+        Examples:
+        |amount    |
+        |40000000  |
+        |-1        |
+        |-100000   |
+        |2147483648|
 
     Scenario: Send many
         Given 3 users in same node
