@@ -1,5 +1,7 @@
 package net.adshares.esc.qa.stepdefs;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
@@ -132,19 +134,53 @@ public class RetrieveFundsStepDefs {
         UserData retrieverData = retriever.getUserData();
         LogChecker lc = new LogChecker();
         lc.setResp(fc.getLog(retrieverData));
-        lc.isBalanceFromObjectEqualToArray();
         Assert.assertTrue("Balance from log is different than that from object", lc.isBalanceFromObjectEqualToArray());
 
         lastResp = fc.getLog(retrieverData, lastEventTs);
         lc.setResp(lastResp);
 
         LogFilter lf;
-        lf = new LogFilter(true);
-        lf.addFilter("type", "retrieve_funds");
-        BigDecimal balanceRetrieveEvents = lc.getBalanceFromLogArray(lf);
         lf = new LogFilter(false);
         lf.addFilter("type", "retrieve_funds");
+        // get sum for other than retrieve_funds
         BigDecimal balanceOtherEvents = lc.getBalanceFromLogArray(lf);
+        lf = new LogFilter(true);
+        lf.addFilter("type", "retrieve_funds");
+        // get sum for retrieve_funds
+        BigDecimal balanceRetrieveEvents = lc.getBalanceFromLogArray(lf);
+        // check retrieve_funds events
+        JsonArray arr = lc.getFilteredLogArray(lf);
+        log.info("size = {}", arr.size());
+        for (int i = 0; i < 4; i++) {
+            JsonObject o = arr.get(i).getAsJsonObject();
+
+            log.info(Utils.jsonPrettyPrint(o.toString()));
+            BigDecimal senderFee;
+            switch (i) {
+                case 0:
+                case 2:
+                    senderFee = o.get("sender_fee").getAsBigDecimal();
+                    Assert.assertEquals(EscConst.RETRIEVE_REQUEST_FEE, senderFee);
+                    break;
+                case 1:
+                    // 1st call confirm
+                    break;
+                case 3:
+                    // 2nd call confirm
+                    senderFee = o.get("sender_fee").getAsBigDecimal();
+                    BigDecimal senderBalance = o.get("sender_balance").getAsBigDecimal();
+                    BigDecimal senderFeeExpected = senderBalance.multiply(EscConst.RETRIEVE_FEE).setScale(11, BigDecimal.ROUND_FLOOR);
+                    log.info("senderFeeExpected1: {}", senderFeeExpected.toPlainString());
+                    BigDecimal additionalRemoteFee = senderBalance.subtract(senderFeeExpected)
+                            .multiply(EscConst.REMOTE_TX_FEE_COEFFICIENT).setScale(11, BigDecimal.ROUND_FLOOR);
+                    senderFeeExpected = senderFeeExpected.add(additionalRemoteFee);
+                    log.info("senderFee:          {}", senderFee.toPlainString());
+                    log.info("senderFeeExpected2: {}", senderFeeExpected.toPlainString());
+                    log.info("diff:               {}", senderFee.subtract(senderFeeExpected).toPlainString());
+                    Assert.assertEquals(senderFeeExpected, senderFee);
+                    break;
+            }
+        }
 
         BigDecimal startBalance = retriever.getStartBalance();
         BigDecimal balance = lc.getBalanceFromAccountObject();
