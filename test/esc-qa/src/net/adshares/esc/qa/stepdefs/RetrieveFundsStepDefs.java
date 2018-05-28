@@ -88,6 +88,15 @@ public class RetrieveFundsStepDefs {
         Assert.assertTrue("Retrieve funds not accepted", EscUtils.isTransactionAcceptedByNode(lastResp));
     }
 
+    @When("^user requests retrieve but it is not accepted$")
+    public void user_requests_retrieve_not_accepted() {
+        FunctionCaller fc = FunctionCaller.getInstance();
+
+        lastResp = fc.retrieveFunds(retriever.getUserData(), inactiveUser.getUserData().getAddress());
+
+        Assert.assertFalse("Retrieve request was accepted", EscUtils.isTransactionAcceptedByNode(lastResp));
+    }
+
     @When("^account is not active for RETRIEVE_DELAY time$")
     public void delay_before_retrieve() {
         // before retrieval account must be inactive for time of:
@@ -98,11 +107,6 @@ public class RetrieveFundsStepDefs {
             log.error("Sleep interrupted");
             log.error(e.toString());
         }
-    }
-
-    @Then("^retrieve request is not accepted$")
-    public void retrieve_request_is_not_accepted() {
-        Assert.assertFalse("Retrieve request was accepted", EscUtils.isTransactionAcceptedByNode(lastResp));
     }
 
     @Then("^after processing time inactive account is empty$")

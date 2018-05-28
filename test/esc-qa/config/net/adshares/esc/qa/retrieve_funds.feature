@@ -25,8 +25,7 @@ Feature: Retrieve funds
     Given user in one node
     And different user in the same node
     When account is not active for RETRIEVE_DELAY time
-    And user requests retrieve
-    Then retrieve request is not accepted
+    And user requests retrieve but it is not accepted
 
   Scenario: Check log
     Given user log
