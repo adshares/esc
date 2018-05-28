@@ -1,7 +1,6 @@
 package net.adshares.esc.qa.util;
 
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 public class EscUtils {
     /**
@@ -11,11 +10,21 @@ public class EscUtils {
      * @return true, if transfer was accepted by node, false otherwise
      */
     public static boolean isTransactionAcceptedByNode(String jsonResp) {
-        JsonParser parser = new JsonParser();
-        JsonObject o = parser.parse(jsonResp).getAsJsonObject();
+        JsonObject o = Utils.convertStringToJsonObject(jsonResp);
         o = o.getAsJsonObject("tx");
 
         return o.has("id");
+    }
+
+    /**
+     * Returns error description or empty String "", if no error is present.
+     *
+     * @param jsonResp response from function (eg. send_one, send_many) as String
+     * @return error description or empty String "", if no error is present
+     */
+    public static String getErrorDescription(String jsonResp) {
+        JsonObject o = Utils.convertStringToJsonObject(jsonResp);
+        return o.has("error") ? o.get("error").getAsString() : "";
     }
 
     /**
