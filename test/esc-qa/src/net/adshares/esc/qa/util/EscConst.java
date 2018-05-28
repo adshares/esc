@@ -53,11 +53,11 @@ public class EscConst {
     /**
      * USER_MIN_MASS minimum user balance after outgoing transfer
      */
-    public static final BigDecimal USER_MIN_MASS = new BigDecimal("0.00000001000");
+    public static final BigDecimal USER_MIN_MASS = new BigDecimal("0.00020000000");
     /**
      * BANK_MIN_UMASS minimum bank balance after outgoing transfer
      */
-    public static final BigDecimal BANK_MIN_UMASS = new BigDecimal("10.00000000000");
+    public static final BigDecimal BANK_MIN_UMASS = new BigDecimal("1.00000000000");
 
     /**
      * Error messages
