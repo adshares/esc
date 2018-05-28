@@ -3,6 +3,7 @@ package net.adshares.esc.qa.stepdefs;
 import cucumber.api.java.Before;
 import net.adshares.esc.qa.util.FunctionCaller;
 import net.adshares.esc.qa.util.Utils;
+import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,7 +36,12 @@ public class Hooks {
             fc.callFunction("docker exec -i adshares_esc_1 rm -rf /tmp/esc");
             fc.callFunction("docker exec -i adshares_esc_1 mkdir /tmp/esc");
             // waits for esc compilation
-            fc.callFunction("docker exec -i adshares_esc_1 /docker/wait-up.php");
+            String resp;
+            do {
+                resp = fc.callFunction("docker exec -i adshares_esc_1 /docker/wait-up.php");
+                Assert.assertFalse("Timeout during docker start", resp.contains("timeout"));
+                Assert.assertNotEquals("No response from docker", "", resp);
+            } while(!resp.contains("started"));
         }
         testCount++;
     }
