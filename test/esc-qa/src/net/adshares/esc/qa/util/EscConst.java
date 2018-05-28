@@ -35,6 +35,10 @@ public class EscConst {
      */
     public static final BigDecimal MULTI_TX_FEE_COEFFICIENT = new BigDecimal("0.0005");
     /**
+     * ~TXS_MINMPT_FEE minumum fee for send_many is bigger for every recipient above 10
+     */
+    public static final BigDecimal MIN_MULTI_TX_PER_RECIPIENT = new BigDecimal("0.00000001000");
+    /**
      * TXS_GET_FEE retrieve funds from remote/dead bank request fee
      */
     public static final BigDecimal RETRIEVE_REQUEST_FEE = new BigDecimal("0.00001000000");

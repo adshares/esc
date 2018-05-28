@@ -1,7 +1,6 @@
 package net.adshares.esc.qa.stepdefs;
 
 import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import cucumber.api.java.en.Given;
@@ -195,7 +194,6 @@ public class TransferStepdefs {
     @When("^wait for balance update")
     public void wait_for_balance_update() {
         log.info("wait for balance update :start");
-        JsonParser parser = new JsonParser();
         FunctionCaller fc = FunctionCaller.getInstance();
 
         UserData sender = txSender.getUserData();
@@ -209,7 +207,6 @@ public class TransferStepdefs {
         }
 
         String resp;
-        JsonObject jsonResp;
         BigDecimal balanceRead;
         BigDecimal balanceFromLogArray;
 
@@ -405,7 +402,7 @@ public class TransferStepdefs {
     }
 
     /**
-     * Returns transfer fee in tokens
+     * Returns transfer fee in tokens.
      *
      * @param senderAddress   sender address
      * @param receiverAddress receiver address
@@ -419,7 +416,7 @@ public class TransferStepdefs {
     }
 
     /**
-     * Returns transfer fee in tokens
+     * Returns transfer fee in tokens.
      *
      * @param senderAddress sender address
      * @param receiverMap   map of receiver - amount pairs
@@ -428,10 +425,12 @@ public class TransferStepdefs {
     private BigDecimal getTransferFee(String senderAddress, Map<String, String> receiverMap) {
         BigDecimal summaryFee = BigDecimal.ZERO;
 
+        int receiverCount = receiverMap.size();
         for (String receiverAddress : receiverMap.keySet()) {
             BigDecimal amount = new BigDecimal(receiverMap.get(receiverAddress));
 
-            BigDecimal localFee = amount.multiply(EscConst.LOCAL_TX_FEE_COEFFICIENT);
+            BigDecimal localFee = amount.multiply(
+                    (receiverCount == 1) ? EscConst.LOCAL_TX_FEE_COEFFICIENT : EscConst.MULTI_TX_FEE_COEFFICIENT);
             // fee scale must be set, because multiply extends scale
             localFee = localFee.setScale(11, BigDecimal.ROUND_FLOOR);
             summaryFee = summaryFee.add(localFee);
@@ -445,7 +444,13 @@ public class TransferStepdefs {
             }
         }
 
-        return EscConst.MIN_TX_FEE.max(summaryFee);
+        if (receiverCount > 10) {
+            // minimum varies when transfers are sent to more than 10 accounts
+            summaryFee = EscConst.MIN_MULTI_TX_PER_RECIPIENT.multiply(new BigDecimal(receiverCount)).max(summaryFee);
+        } else {
+            summaryFee = EscConst.MIN_TX_FEE.max(summaryFee);
+        }
+        return summaryFee;
     }
 
     /**
