@@ -127,7 +127,7 @@ public class RetrieveFundsStepDefs {
         } while (BigDecimal.ZERO.compareTo(fc.getUserAccountBalance(inactiveUser)) != 0);
         log.info("Account was empty after {} block(s)", loopCnt);
 
-
+        Assert.assertTrue(new LogChecker(fc.getLog(inactiveUser.getUserData())).isBalanceFromObjectEqualToArray());
 
     }
 
