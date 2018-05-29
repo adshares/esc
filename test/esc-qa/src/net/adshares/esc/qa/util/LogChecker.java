@@ -150,6 +150,19 @@ public class LogChecker {
     }
 
     /**
+     * Returns timestamp of last event in log.
+     *
+     * @return timestamp of last event in log or 0 if log is empty
+     */
+    public LogEventTimestamp getLastEventTimestamp() {
+        LogEventTimestamp let = EscUtils.getLastLogEventTimestamp(jsonResp);
+
+        log.info("last log event time: {} ({}) for {}", let, Utils.formatSecondsAsDate(let.getTimestamp()),
+                jsonResp.getAsJsonObject("account").get("address").getAsString());
+        return let;
+    }
+
+    /**
      * Returns array of log events that match filter.
      *
      * @param filter LogFilter, null for all events

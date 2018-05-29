@@ -18,7 +18,7 @@ import java.util.*;
 /**
  * Cucumber steps definitions for transfer tests
  */
-public class TransferStepdefs {
+public class TransferStepDefs {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
 
@@ -49,12 +49,16 @@ public class TransferStepdefs {
 
         Assert.assertNotEquals("No user with positive balance.", maxBalanceIndex, -1);
 
+        LogChecker lc = new LogChecker();
         txReceivers = new ArrayList<>();
         for (int i = 0; i < userDataList.size(); i++) {
             UserData userData = userDataList.get(i);
+            lc.setResp(fc.getLog(userData));
+
             TransferUser tu = new TransferUser();
             tu.setUserData(userData);
-            tu.setStartBalance(fc.getUserAccountBalance(userData));
+            tu.setStartBalance(lc.getBalanceFromAccountObject());
+            tu.setLastEventTimestamp(lc.getLastEventTimestamp().incrementEventNum());
 
             if (i == maxBalanceIndex) {
                 txSender = tu;
@@ -94,6 +98,7 @@ public class TransferStepdefs {
             jsonResp = fc.sendOne(sender, receiverAddress, txAmount);
             fee = getTransferFee(senderAddress, receiverAddress, amount);
         }
+        txSender.setLastEventTimestamp(fc.getLastEventTimestamp(sender).incrementEventNum());
 
         BigDecimal senderBalance = txSender.getStartBalance();
         BigDecimal tmpSenderExpBalance = senderBalance.subtract(amountOut).subtract(fee);
@@ -120,7 +125,7 @@ public class TransferStepdefs {
 
             checkComputedFeeWithResponse(jsonResp, txDataOut);
         } else {
-            log.info("Not enough funds for transfer");
+            log.info("Cannot transfer funds");
             log.info("\tbalance: {}", senderBalance);
             log.info("\t amount: {}", txAmount);
             log.info("\t    fee: {}", fee);
@@ -147,7 +152,7 @@ public class TransferStepdefs {
 
             // minimal account balance after transfer
             BigDecimal minAccountBalance = sender.getMinAllowedBalance();
-            // subraction, because after transfer balance cannot be lesser than minimal allowed
+            // subtraction, because after transfer balance cannot be lesser than minimal allowed
             BigDecimal availableAmount = txSender.getStartBalance().subtract(minAccountBalance);
 
             // calculate approx value of maximal transfer amount
@@ -180,16 +185,6 @@ public class TransferStepdefs {
     public void wait_for_balance_update() {
         log.info("wait for balance update :start");
         FunctionCaller fc = FunctionCaller.getInstance();
-
-        UserData sender = txSender.getUserData();
-        LogEventTimestamp senderLastEventTs = fc.getLastEventTimestamp(sender).incrementEventNum();
-
-        List<LogEventTimestamp> receiverEventTs = new ArrayList<>(txReceivers.size());
-        for (TransferUser txReceiver : txReceivers) {
-            UserData receiverData = txReceiver.getUserData();
-            LogEventTimestamp ts = fc.getLastEventTimestamp(receiverData).incrementEventNum();
-            receiverEventTs.add(ts);
-        }
 
         String resp;
         BigDecimal balanceRead;
@@ -227,7 +222,7 @@ public class TransferStepdefs {
                     BigDecimal txAmountIn = transferData.getAmount();
 
                     UserData receiverData = txReceiver.getUserData();
-                    LogEventTimestamp ts = receiverEventTs.get(i);
+                    LogEventTimestamp ts = txReceiver.getLastEventTimestamp();
                     resp = fc.getLog(receiverData, ts);
                     logChecker.setResp(resp);
 
@@ -260,7 +255,7 @@ public class TransferStepdefs {
         for (int i = 0; i < txReceivers.size(); i++) {
             TransferUser txReceiver = txReceivers.get(i);
             UserData receiverData = txReceiver.getUserData();
-            LogEventTimestamp ts = receiverEventTs.get(i);
+            LogEventTimestamp ts = txReceiver.getLastEventTimestamp();
             resp = fc.getLog(receiverData, ts);
             logChecker.setResp(resp);
             balanceRead = logChecker.getBalanceFromAccountObject();
@@ -287,6 +282,8 @@ public class TransferStepdefs {
         }
 
 
+        UserData sender = txSender.getUserData();
+        LogEventTimestamp senderLastEventTs = txSender.getLastEventTimestamp();
         resp = fc.getLog(sender, senderLastEventTs);
         logChecker.setResp(resp);
         balanceRead = logChecker.getBalanceFromAccountObject();

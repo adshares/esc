@@ -22,7 +22,6 @@ public class RetrieveFundsStepDefs {
     private TransferUser retriever;
     private TransferUser inactiveUser;
     private String lastResp;
-    private LogEventTimestamp lastEventTs;
 
     @Given("^user in one node$")
     public void users_in_node() {
@@ -31,7 +30,7 @@ public class RetrieveFundsStepDefs {
         retriever = new TransferUser();
         retriever.setUserData(u);
         retriever.setStartBalance(fc.getUserAccountBalance(retriever.getUserData()));
-        lastEventTs = fc.getLastEventTimestamp(retriever.getUserData()).incrementEventNum();
+        retriever.setLastEventTimestamp(fc.getLastEventTimestamp(retriever.getUserData()).incrementEventNum());
     }
 
     @Given("^different user in the same node$")
@@ -140,7 +139,7 @@ public class RetrieveFundsStepDefs {
         lc.setResp(fc.getLog(retrieverData));
         Assert.assertTrue("Balance from log is different than that from object", lc.isBalanceFromObjectEqualToArray());
 
-        lastResp = fc.getLog(retrieverData, lastEventTs);
+        lastResp = fc.getLog(retrieverData, retriever.getLastEventTimestamp());
         lc.setResp(lastResp);
 
         LogFilter lf;

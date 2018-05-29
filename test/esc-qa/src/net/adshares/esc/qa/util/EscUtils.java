@@ -1,5 +1,7 @@
 package net.adshares.esc.qa.util;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
 public class EscUtils {
@@ -29,6 +31,41 @@ public class EscUtils {
     public static String getErrorDescription(String jsonResp) {
         JsonObject o = Utils.convertStringToJsonObject(jsonResp);
         return o.has("error") ? o.get("error").getAsString() : "";
+    }
+
+    /**
+     * Returns timestamp of last event in log.
+     *
+     * @param jsonObject json response for get_log function
+     * @return timestamp of last event in log or 0, if log is empty
+     */
+    static LogEventTimestamp getLastLogEventTimestamp(JsonObject jsonObject) {
+        long timeStamp = 0;
+        int eventsCount = 0;
+        if (jsonObject.has("log")) {
+            JsonElement jsonElementLog = jsonObject.get("log");
+            if (jsonElementLog.isJsonArray()) {
+                JsonArray arr = jsonElementLog.getAsJsonArray();
+
+                int size = arr.size();
+                if (size > 0) {
+                    int index = size - 1;
+                    JsonObject entry = arr.get(index).getAsJsonObject();
+                    timeStamp = entry.get("time").getAsLong();
+                    ++eventsCount;
+
+                    while (index > 0) {
+                        --index;
+
+                        if (timeStamp != arr.get(index).getAsJsonObject().get("time").getAsLong()) {
+                            break;
+                        }
+                        ++eventsCount;
+                    }
+                }
+            }
+        }
+        return new LogEventTimestamp(timeStamp, eventsCount);
     }
 
     /**

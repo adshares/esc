@@ -300,36 +300,14 @@ public class FunctionCaller {
      * Returns timestamp of last event in log.
      *
      * @param userData user data
-     * @return timestamp of last event in log or 0 if log is empty
+     * @return timestamp of last event in log or 0, if log is empty
      */
     public LogEventTimestamp getLastEventTimestamp(UserData userData) {
         JsonObject o = Utils.convertStringToJsonObject(getLog(userData));
 
-        JsonElement jsonElementLog = o.get("log");
-        long timeStamp = 0;
-        int eventsCount = 0;
-        if (jsonElementLog.isJsonArray()) {
-            JsonArray arr = jsonElementLog.getAsJsonArray();
-
-            int size = arr.size();
-            if (size > 0) {
-                int index = size - 1;
-                JsonObject entry = arr.get(index).getAsJsonObject();
-                timeStamp = entry.get("time").getAsLong();
-                ++eventsCount;
-
-                while (index > 0) {
-                    --index;
-
-                    if (timeStamp != arr.get(index).getAsJsonObject().get("time").getAsLong()) {
-                        break;
-                    }
-                    ++eventsCount;
-                }
-            }
-        }
-        LogEventTimestamp let = new LogEventTimestamp(timeStamp, eventsCount);
-        log.info("last log event time: {} ({})", Utils.formatSecondsAsDate(let.getTimestamp()), let);
+        LogEventTimestamp let = EscUtils.getLastLogEventTimestamp(o);
+        log.info("last log event time: {} ({}) for {}", let, Utils.formatSecondsAsDate(let.getTimestamp()),
+                o.getAsJsonObject("account").get("address").getAsString());
         return let;
     }
 
