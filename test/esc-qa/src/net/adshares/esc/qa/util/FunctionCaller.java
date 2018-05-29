@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.math.BigDecimal;
+import java.util.Iterator;
 import java.util.Map;
 
 public class FunctionCaller {
@@ -51,6 +52,19 @@ public class FunctionCaller {
         String output = callFunction(command);
         output = output.replaceFirst(".*}\\s*\\{", "{");
         return output;
+    }
+
+    /**
+     * Calls get_block function.
+     *
+     * @param userData user data
+     * @return response: json when request was correct, empty otherwise
+     */
+    public String getBlock(UserData userData) {
+        log.info("getBlock");
+        String command = ("echo '{\"run\":\"get_block\"}' | ")
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(userData.getDataAsEscParams());
+        return callFunction(command);
     }
 
     /**
@@ -112,6 +126,58 @@ public class FunctionCaller {
         String command = String.format("echo '{\"run\":\"get_log\", \"from\":\"%d\"}' | ", fromTimeStamp)
                 .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(userData.getDataAsEscParams());
         return callFunction(command);
+    }
+
+    /**
+     * Calls get_log function for specific user.
+     *
+     * @param userData      user data
+     * @param logEventTimeStamp log start timestamp
+     * @return response: json when request was correct, empty otherwise
+     */
+    public String getLog(UserData userData, LogEventTimestamp logEventTimeStamp) {
+        log.info("getLog from {}", logEventTimeStamp);
+        long timestamp = logEventTimeStamp.getTimestamp();
+        String command = String.format("echo '{\"run\":\"get_log\", \"from\":\"%d\"}' | ", timestamp)
+                .concat(ESC_BINARY).concat(ESC_BINARY_OPTS).concat(userData.getDataAsEscParams());
+        String resp = callFunction(command);
+
+        // if eventNum is lesser than 2, no event will be removed
+        int eventNum = logEventTimeStamp.getEventNum();
+        if (eventNum > 1) {
+            JsonObject o = Utils.convertStringToJsonObject(resp);
+            JsonElement jsonElementLog = o.get("log");
+            if (jsonElementLog.isJsonArray()) {
+                JsonArray arr = jsonElementLog.getAsJsonArray();
+                if (arr.size() > 0) {
+                    Iterator<JsonElement> it = arr.iterator();
+
+                    int eventCount = 0;
+                    while(it.hasNext()) {
+                        JsonObject entry = it.next().getAsJsonObject();
+                        // events in log are sorted by time:
+                        // if event time is different than timestamp,
+                        // this means that event happened later than timestamp
+                        long ts = entry.get("time").getAsLong();
+                        if (ts != timestamp) {
+                            break;
+                        }
+                        ++eventCount;
+                        if (eventCount >= eventNum) {
+                            break;
+                        }
+                        it.remove();
+                        log.error("REMOVED");
+                    }
+
+                    Gson gson = new GsonBuilder().create();
+                    resp = gson.toJson(o);
+
+                }
+            }
+        }
+
+        return resp;
     }
 
     /**
@@ -190,7 +256,7 @@ public class FunctionCaller {
             // when command is too long it is not possible to call it using sh shell
             // command is saved to file and file is new command
 
-            PrintWriter writer = null;
+            PrintWriter writer;
             try {
                 writer = new PrintWriter(TEMP_FILE_NAME, "UTF-8");
                 writer.println(cmd);
@@ -236,14 +302,35 @@ public class FunctionCaller {
      * @param userData user data
      * @return timestamp of last event in log or 0 if log is empty
      */
-    public long getLastEventTimestamp(UserData userData) {
-        JsonParser parser = new JsonParser();
-        JsonObject jsonResp = parser.parse(getLog(userData)).getAsJsonObject();
-        JsonArray jsonLogArray = jsonResp.getAsJsonArray("log");
-        int size = jsonLogArray.size();
-        long time = (size > 0) ? jsonLogArray.get(size - 1).getAsJsonObject().get("time").getAsLong() : 0;
-        log.info("last log event time: {} ({})", time, Utils.formatSecondsAsDate(time));
-        return time;
+    public LogEventTimestamp getLastEventTimestamp(UserData userData) {
+        JsonObject o = Utils.convertStringToJsonObject(getLog(userData));
+
+        JsonElement jsonElementLog = o.get("log");
+        long timeStamp = 0;
+        int eventsCount = 0;
+        if (jsonElementLog.isJsonArray()) {
+            JsonArray arr = jsonElementLog.getAsJsonArray();
+
+            int size = arr.size();
+            if (size > 0) {
+                int index = size - 1;
+                JsonObject entry = arr.get(index).getAsJsonObject();
+                timeStamp = entry.get("time").getAsLong();
+                ++eventsCount;
+
+                while (index > 0) {
+                    --index;
+
+                    if (timeStamp != arr.get(index).getAsJsonObject().get("time").getAsLong()) {
+                        break;
+                    }
+                    ++eventsCount;
+                }
+            }
+        }
+        LogEventTimestamp let = new LogEventTimestamp(timeStamp, eventsCount);
+        log.info("last log event time: {} ({})", Utils.formatSecondsAsDate(let.getTimestamp()), let);
+        return let;
     }
 
     /**

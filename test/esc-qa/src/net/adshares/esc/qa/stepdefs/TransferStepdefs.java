@@ -1,6 +1,5 @@
 package net.adshares.esc.qa.stepdefs;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import cucumber.api.java.en.Given;
@@ -177,33 +176,18 @@ public class TransferStepdefs {
         }
     }
 
-    private long getLastEventTimestamp(UserData receiverData) {
-        FunctionCaller fc = FunctionCaller.getInstance();
-        String resp = fc.getLog(receiverData);
-        JsonParser parser = new JsonParser();
-        JsonObject jsonResp = parser.parse(resp).getAsJsonObject();
-
-        LogChecker lc = new LogChecker(resp);
-        BigDecimal balanceRead = lc.getBalanceFromAccountObject();
-        BigDecimal balanceFromLogArray = lc.getBalanceFromLogArray();
-        log.info("balanceFromLog      {} : receiver1", balanceRead);
-        log.info("balanceFromLogArray {} : receiver1", balanceFromLogArray);
-
-        return getLastEventTime(jsonResp);
-    }
-
     @When("^wait for balance update")
     public void wait_for_balance_update() {
         log.info("wait for balance update :start");
         FunctionCaller fc = FunctionCaller.getInstance();
 
         UserData sender = txSender.getUserData();
-        long senderLastEventTs = getLastEventTimestamp(sender) + 1L;
+        LogEventTimestamp senderLastEventTs = fc.getLastEventTimestamp(sender).incrementEventNum();
 
-        List<Long> receiverEventTs = new ArrayList<>(txReceivers.size());
+        List<LogEventTimestamp> receiverEventTs = new ArrayList<>(txReceivers.size());
         for (TransferUser txReceiver : txReceivers) {
             UserData receiverData = txReceiver.getUserData();
-            long ts = getLastEventTimestamp(receiverData) + 1L;
+            LogEventTimestamp ts = fc.getLastEventTimestamp(receiverData).incrementEventNum();
             receiverEventTs.add(ts);
         }
 
@@ -229,7 +213,7 @@ public class TransferStepdefs {
 
             for (int i = 0; i < txReceivers.size(); i++) {
                 if (!receiverIds.contains(i)) {
-                    // current user receiver transfer
+                    // current user received transfer
                     continue;
                 }
 
@@ -243,7 +227,7 @@ public class TransferStepdefs {
                     BigDecimal txAmountIn = transferData.getAmount();
 
                     UserData receiverData = txReceiver.getUserData();
-                    long ts = receiverEventTs.get(i);
+                    LogEventTimestamp ts = receiverEventTs.get(i);
                     resp = fc.getLog(receiverData, ts);
                     logChecker.setResp(resp);
 
@@ -276,7 +260,7 @@ public class TransferStepdefs {
         for (int i = 0; i < txReceivers.size(); i++) {
             TransferUser txReceiver = txReceivers.get(i);
             UserData receiverData = txReceiver.getUserData();
-            long ts = receiverEventTs.get(i);
+            LogEventTimestamp ts = receiverEventTs.get(i);
             resp = fc.getLog(receiverData, ts);
             logChecker.setResp(resp);
             balanceRead = logChecker.getBalanceFromAccountObject();
@@ -328,13 +312,7 @@ public class TransferStepdefs {
         }
     }
 
-    private long getLastEventTime(JsonObject jsonResp) {
-        JsonArray jsonLogArray = jsonResp.getAsJsonArray("log");
-        int size = jsonLogArray.size();
-        long time = (size > 0) ? jsonLogArray.get(size - 1).getAsJsonObject().get("time").getAsLong() : 0;
-        log.info("last log event time: {} ({})", time, Utils.formatSecondsAsDate(time));
-        return time;
-    }
+
 
     @Then("^receiver balance is increased by sent amount$")
     public void check_balance_chg_receiver() {

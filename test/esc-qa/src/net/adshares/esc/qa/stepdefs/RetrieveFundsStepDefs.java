@@ -22,7 +22,7 @@ public class RetrieveFundsStepDefs {
     private TransferUser retriever;
     private TransferUser inactiveUser;
     private String lastResp;
-    private long lastEventTs;
+    private LogEventTimestamp lastEventTs;
 
     @Given("^user in one node$")
     public void users_in_node() {
@@ -31,7 +31,7 @@ public class RetrieveFundsStepDefs {
         retriever = new TransferUser();
         retriever.setUserData(u);
         retriever.setStartBalance(fc.getUserAccountBalance(retriever.getUserData()));
-        lastEventTs = fc.getLastEventTimestamp(retriever.getUserData()) + 1L;
+        lastEventTs = fc.getLastEventTimestamp(retriever.getUserData()).incrementEventNum();
     }
 
     @Given("^different user in the same node$")
