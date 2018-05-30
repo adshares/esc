@@ -3,7 +3,6 @@ package net.adshares.esc.qa.stepdefs;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import cucumber.api.java.en.Given;
 import cucumber.api.java.en.Then;
 import cucumber.api.java.en.When;
@@ -454,8 +453,7 @@ public class TransferStepDefs {
      * @param transferData transfer data
      */
     private void checkComputedFeeWithResponse(String jsonResp, TransferData transferData) {
-        JsonParser parser = new JsonParser();
-        JsonObject o = parser.parse(jsonResp).getAsJsonObject();
+        JsonObject o = Utils.convertStringToJsonObject(jsonResp);
         o = o.getAsJsonObject("tx");
 
         BigDecimal fee = o.get("fee").getAsBigDecimal();

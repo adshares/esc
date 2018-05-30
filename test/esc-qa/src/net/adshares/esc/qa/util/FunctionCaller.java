@@ -318,8 +318,7 @@ public class FunctionCaller {
      * @return user account balance
      */
     public BigDecimal getUserAccountBalance(UserData userData) {
-        JsonParser parser = new JsonParser();
-        JsonObject o = parser.parse(getMe(userData)).getAsJsonObject();
+        JsonObject o = Utils.convertStringToJsonObject(getMe(userData));
         String balance = o.getAsJsonObject("account").get("balance").getAsString();
         log.info("user {} balance: {}", userData.getAddress(), balance);
         return new BigDecimal(balance);
