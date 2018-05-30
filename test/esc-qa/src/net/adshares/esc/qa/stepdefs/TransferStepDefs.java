@@ -1,5 +1,7 @@
 package net.adshares.esc.qa.stepdefs;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import cucumber.api.java.en.Given;
@@ -21,6 +23,10 @@ import java.util.*;
 public class TransferStepDefs {
 
     private final Logger log = LoggerFactory.getLogger(getClass());
+    /**
+     * Regexp for transfer event in log
+     */
+    private static final String REGEX_TRANSFER_TYPE = "send_one|send_many";
 
     private TransferUser txSender;
     private List<TransferUser> txReceivers;
@@ -98,7 +104,36 @@ public class TransferStepDefs {
             jsonResp = fc.sendOne(sender, receiverAddress, txAmount);
             fee = getTransferFee(senderAddress, receiverAddress, amount);
         }
-        txSender.setLastEventTimestamp(fc.getLastEventTimestamp(sender).incrementEventNum());
+        boolean isTransactionAccepted = EscUtils.isTransactionAcceptedByNode(jsonResp);
+        if (isTransactionAccepted) {
+            JsonObject o = Utils.convertStringToJsonObject(jsonResp);
+            o = o.getAsJsonObject("account");
+            BigDecimal balanceBeforeTransfer = o.get("balance").getAsBigDecimal();
+            long transferTime = o.get("time").getAsLong();
+
+            o = Utils.convertStringToJsonObject(fc.getLog(sender, transferTime));
+            JsonArray logArr = o.getAsJsonArray("log");
+
+            // look for transfer events, all
+            boolean isTransferFound = false;
+            int eventsCount = 0;
+            for (JsonElement je : logArr) {
+                String type = je.getAsJsonObject().get("type").getAsString();
+
+                if (type.matches(REGEX_TRANSFER_TYPE)) {
+                    isTransferFound = true;
+                } else {
+                    if (isTransferFound) {
+                        break;
+                    }
+                }
+                ++eventsCount;
+            }
+
+            txSender.setStartBalance(balanceBeforeTransfer);
+            LogEventTimestamp lastEventTimestamp = new LogEventTimestamp(transferTime, eventsCount);
+            txSender.setLastEventTimestamp(lastEventTimestamp.incrementEventNum());
+        }
 
         BigDecimal senderBalance = txSender.getStartBalance();
         BigDecimal tmpSenderExpBalance = senderBalance.subtract(amountOut).subtract(fee);
@@ -106,7 +141,7 @@ public class TransferStepDefs {
         // check, if transfer is possible and balance won't be bigger after transfer
         if (tmpSenderExpBalance.compareTo(minAccountBalance) >= 0 && tmpSenderExpBalance.compareTo(senderBalance) < 0) {
             // update balances, if transfer is possible
-            Assert.assertTrue("transfer was not accepted by node", EscUtils.isTransactionAcceptedByNode(jsonResp));
+            Assert.assertTrue("transfer was not accepted by node", isTransactionAccepted);
 
             // receivers
             TransferData txDataIn = new TransferData();
@@ -130,7 +165,7 @@ public class TransferStepDefs {
             log.info("\t amount: {}", txAmount);
             log.info("\t    fee: {}", fee);
 
-            Assert.assertFalse("transfer was accepted by node", EscUtils.isTransactionAcceptedByNode(jsonResp));
+            Assert.assertFalse("transfer was accepted by node", isTransactionAccepted);
 
             for (TransferUser txReceiver : txReceivers) {
                 txReceiver.setExpBalance(txReceiver.getStartBalance());
@@ -201,10 +236,6 @@ public class TransferStepDefs {
         int MAX_BLOCK_DELAY = 50;
         int blockDelay;
         for (blockDelay = 0; blockDelay < MAX_BLOCK_DELAY; blockDelay++) {
-            sleepOneBlock();
-            log.info("");
-            log.info("block period delay: {}", blockDelay + 1);
-            log.info("");
 
             for (int i = 0; i < txReceivers.size(); i++) {
                 if (!receiverIds.contains(i)) {
@@ -243,6 +274,11 @@ public class TransferStepDefs {
                 // all users received transfer
                 break;
             }
+
+            sleepOneBlock();
+            log.info("");
+            log.info("block period delay: {}", blockDelay + 1);
+            log.info("");
         }
 
         if (blockDelay == MAX_BLOCK_DELAY) {
@@ -321,28 +357,10 @@ public class TransferStepDefs {
         }
     }
 
-    @Then("^receiver balance does not change$")
-    public void check_balance_receiver() {
-        FunctionCaller fc = FunctionCaller.getInstance();
-        for (TransferUser receiver : txReceivers) {
-            BigDecimal receiverExpBalance = receiver.getExpBalance();
-            Assert.assertEquals(receiverExpBalance, receiver.getStartBalance());
-            Assert.assertEquals(receiverExpBalance, fc.getUserAccountBalance(receiver));
-        }
-    }
-
     @Then("^sender balance is decreased by sent amount and fee$")
     public void check_balance_chg_sender() {
         BigDecimal senderExpBalance = txSender.getExpBalance();
         Assert.assertNotEquals(senderExpBalance, txSender.getStartBalance());
-        FunctionCaller fc = FunctionCaller.getInstance();
-        Assert.assertEquals(senderExpBalance, fc.getUserAccountBalance(txSender));
-    }
-
-    @Then("^sender balance does not change$")
-    public void check_balance_sender() {
-        BigDecimal senderExpBalance = txSender.getExpBalance();
-        Assert.assertEquals(senderExpBalance, txSender.getStartBalance());
         FunctionCaller fc = FunctionCaller.getInstance();
         Assert.assertEquals(senderExpBalance, fc.getUserAccountBalance(txSender));
     }

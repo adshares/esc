@@ -8,12 +8,12 @@ public class LogEventTimestamp {
     private long timestamp;
     private int eventNum;
 
-    LogEventTimestamp(long timestamp) {
-        this.timestamp = timestamp;
-        this.eventNum = 0;
-    }
+//    public LogEventTimestamp(long timestamp) {
+//        this.timestamp = timestamp;
+//        this.eventNum = 0;
+//    }
 
-    LogEventTimestamp(long timestamp, int eventNum) {
+    public LogEventTimestamp(long timestamp, int eventNum) {
         this.timestamp = timestamp;
         this.eventNum = eventNum;
     }

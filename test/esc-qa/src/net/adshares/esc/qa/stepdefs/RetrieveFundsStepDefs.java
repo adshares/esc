@@ -27,10 +27,12 @@ public class RetrieveFundsStepDefs {
     public void users_in_node() {
         FunctionCaller fc = FunctionCaller.getInstance();
         UserData u = UserDataProvider.getInstance().getUserDataList(1).get(0);
+
+        LogChecker lc = new LogChecker(fc.getLog(u));
         retriever = new TransferUser();
         retriever.setUserData(u);
-        retriever.setStartBalance(fc.getUserAccountBalance(retriever.getUserData()));
-        retriever.setLastEventTimestamp(fc.getLastEventTimestamp(retriever.getUserData()).incrementEventNum());
+        retriever.setStartBalance(lc.getBalanceFromAccountObject());
+        retriever.setLastEventTimestamp(lc.getLastEventTimestamp().incrementEventNum());
     }
 
     @Given("^different user in the same node$")
